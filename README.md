@@ -393,3 +393,4 @@ See [CONTRIBUTING.md](https://github.com/Nayjest/Gito/blob/main/CONTRIBUTING.md)
 Licensed under the [MIT License](https://github.com/Nayjest/Gito/blob/main/LICENSE).
 
 © 2025–2026 [Vitalii Stepanenko](mailto:mail@vitaliy.in)
+lokesh
