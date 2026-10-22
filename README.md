@@ -8,18 +8,19 @@ CodeSense is an enterprise-grade, student-developed software analysis platform t
 
 ## 📌 Table of Contents
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Architecture & System Design](#architecture--system-design)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Installation & Setup](#installation--setup)
-- [Configuration](#configuration)
-- [Running the Application](#running-the-application)
-- [Usage Workflow](#usage-workflow)
-- [API Reference](#api-reference)
-- [Future Improvements](#future-improvements)
-- [License & Attribution](#license--attribution)
+- [Overview & About](#-overview)
+- [Application Screenshots & UI Tour](#-application-screenshots--ui-tour)
+- [Key Features](#-key-features)
+- [Architecture & System Design](#️-architecture--system-design)
+- [Technology Stack](#-technology-stack)
+- [Project Structure](#-project-structure)
+- [Installation & Setup](#-installation--setup)
+- [Configuration](#-configuration)
+- [Running the Application](#-running-the-application)
+- [Usage Workflow](#-usage-workflow)
+- [API Reference](#-api-reference)
+- [Future Improvements](#-future-improvements)
+- [License & Attribution](#-license--attribution)
 
 ---
 
@@ -31,6 +32,38 @@ Modern software development often suffers from incomplete documentation, delayed
 2. **Deep Security & Bug Detection**: Pinpointing vulnerabilities, unhandled edge cases, authentication flaws, and OWASP Top 10 risks with file paths and line ranges.
 3. **Complexity & Quality Benchmarks**: Calculating cyclomatic complexity heuristics, maintainability scores, and test coverage indicators.
 4. **Interactive RAG AI Assistant**: An integrated conversational interface backed by ChromaDB vector embeddings that answers natural-language questions about reviewed codebases with source-cited precision.
+
+---
+
+## 📸 Application Screenshots & UI Tour
+
+### 1. Interactive Repository Review & Architecture Dashboard
+> *Enter any GitHub repository URL or local workspace path. CodeSense clones the repo, analyzes high-signal source files, and generates a structured 22-section technical specification document complete with live Mermaid diagrams.*
+
+<p align="center">
+  <img src="docs/screenshots/01_review_dashboard.png" alt="CodeSense Review Dashboard" width="920" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);" />
+</p>
+
+### 2. Plans, Pricing & Membership Quotas
+> *Tier-based computing allowances (Free, Pro, Enterprise) with instant monthly & annual interval switching, live quota meters, and integrated Cashfree payment checkout.*
+
+<p align="center">
+  <img src="docs/screenshots/02_pricing_plans.png" alt="CodeSense Plans and Pricing" width="920" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);" />
+</p>
+
+### 3. Developer Authentication & Security
+> *Enterprise authentication supporting Google OAuth 2.0 ("Continue with Google") and local bcrypt-encrypted password credentials with JWT session management.*
+
+<p align="center">
+  <img src="docs/screenshots/03_login_authentication.png" alt="CodeSense Sign In" width="800" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);" />
+</p>
+
+### 4. Self-Serve Developer Signup & Verification
+> *Clean developer onboarding with 6-digit email OTP verification and strict role-based privilege isolation.*
+
+<p align="center">
+  <img src="docs/screenshots/04_signup_registration.png" alt="CodeSense Signup" width="800" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);" />
+</p>
 
 ---
 
