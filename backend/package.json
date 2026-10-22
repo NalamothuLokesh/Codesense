@@ -1,0 +1,21 @@
+{
+  "name": "codesense-backend",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test test/rbac.test.js && node --test test/membership.test.js",
+    "test:membership": "node --test test/membership.test.js",
+    "test:rbac": "node --test test/rbac.test.js",
+    "bootstrap": "node scripts/bootstrap-superadmin.js",
+    "migrate": "node scripts/migrate-rbac.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.24.1",
+    "nodemailer": "^10.0.16"
+  }
+}

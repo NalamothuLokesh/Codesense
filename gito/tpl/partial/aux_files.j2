@@ -1,8 +1,0 @@
-{% if aux_files %}
-----AUXILIARY INFORMATION----
-* Use if helpful for the task.
-{% for file, text in aux_files.items() %}
---FILE: {{ file }}--
-{{ text.strip() }}
-{%- endfor -%}
-{%- endif -%}

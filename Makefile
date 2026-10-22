@@ -1,35 +1,13 @@
-cs:
-	flake8 .
-black:
-	black .
+.PHONY: dev frontend backend chat-service build
 
+backend:
+	node backend/server.js
 
-install:
-	pip install -e .
+frontend:
+	cd frontend && npm run dev
 
-pkg:
-	python multi-build.py
-build: pkg
+chat-service:
+	python backend/chat_service.py
 
-clear-dist:
-	python -c "import shutil, os; shutil.rmtree('dist', ignore_errors=True); os.makedirs('dist', exist_ok=True)"
-clr-dist: clear-dist
-
-windows-build:  # Build Windows executable using PyInstaller to dist/gito.exe
-	pyinstaller gito.spec
-
-publish:
-	python -c "import os,subprocess;t=os.getenv('PYPI_TOKEN');subprocess.run(['python', '-m', 'twine', 'upload', 'dist/*', '-u', '__token__', '-p', t], check=True)"
-
-upload: publish
-test:
-	pytest --log-cli-level=INFO
-tests: test
-
-# Generate CLI reference documentation
-# Does not work on Windows due to PYTHONUTF8 env var setting
-cli-reference:
-	PYTHONUTF8=1 typer gito.cli utils docs --name gito --title="<a href=\"https://github.com/Nayjest/Gito\"><img src=\"https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-bot-1_64top.png\" align=\"left\" width=64 height=50 title=\"Gito: AI Code Reviewer\"></a>Gito CLI Reference" --output documentation/command_line_reference.md
-cli-ref: cli-reference
-cli-doc: cli-reference
-cli-docs: cli-reference
+build:
+	cd frontend && npm run build

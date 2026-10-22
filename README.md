@@ -1,396 +1,317 @@
-<h1 align="center"><a href="#"><img alt="Gito: AI Code Reviewer" src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/logo/gito-ai-code-reviewer_logo-180.png" align="center" width="180"></a></h1>
-<p align="center">
-<a href="https://pypi.org/project/gito.bot/" target="_blank"><img src="https://img.shields.io/pypi/v/gito.bot" alt="PYPI Release"></a>
-<a href="https://github.com/Nayjest/Gito/actions/workflows/code-style.yml" target="_blank"><img src="https://github.com/Nayjest/Gito/actions/workflows/code-style.yml/badge.svg" alt="PyLint"></a>
-<a href="https://github.com/Nayjest/Gito/actions/workflows/tests.yml" target="_blank"><img src="https://github.com/Nayjest/Gito/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
-<img src="https://raw.githubusercontent.com/Nayjest/Gito/coverage-badge/coverage.svg" alt="Code Coverage">
-<a href="https://github.com/vshymanskyy/StandWithUkraine/blob/main/README.md" target="_blank"><img src="https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/refs/heads/main/badges/StandWithUkraine.svg" alt="Stand With Ukraine"></a>
-<a href="https://github.com/Nayjest/Gito/blob/main/LICENSE" target="_blank"><img src="https://img.shields.io/static/v1?label=license&message=MIT&color=d08aff" alt="License"></a>
-</p>
+# CodeSense
 
-**Gito** is an open-source **AI code reviewer** that works with any language model provider.
-It detects issues in GitHub pull requests or local codebase changes—instantly, reliably, and without vendor lock-in.
+> **AI-Powered Code Review & Technical Documentation Platform**
 
-Get consistent, thorough code reviews in seconds—no waiting for human availability.
+CodeSense is an enterprise-grade, student-developed software analysis platform that automates full-codebase code reviews, architectural documentation generation, security auditing, and code exploration. Built with a modern React frontend, a resilient Node.js API gateway, and a specialized Python AI engine powered by RAG (Retrieval-Augmented Generation) and local or cloud LLMs.
 
-## 📋 Table of Contents
-- [Why Gito?](#-why-gito)
-- [Perfect For](#-perfect-for)
-- [Supported Platforms & Integrations](#-supported-platforms--integrations)
-- [Security & Privacy](#-security--privacy)
-- [Quickstart](#-quickstart)
-  - [1. Review Pull Requests via GitHub Actions](#1-review-pull-requests-via-github-actions)
-  - [2. Running Code Analysis Locally](#2-running-code-analysis-locally)
-- [Configuration](#-configuration)
-- [Guides & Reference](#-guides--reference)
-  - [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md) ↗
-  - [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md) ↗
-  - [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) ↗
-  - [GitLab Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/gitlab_setup.md) ↗
-  - Integrations
-    - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md) ↗ 
-    - [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md) ↗
-  - [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md) ↗
-  - [Documentation generation with Gito](https://github.com/Nayjest/Gito/blob/main/documentation/documentation_generation.md) ↗
-- [Known Limitations](#-known-limitations)
-- [Development Setup](#-development-setup)
-- [Contributing](#-contributing)
-- [License](#-license)
+---
 
-## ✨ Why Gito?<a id="-why-gito"></a>
+## 📌 Table of Contents
 
-- [⚡] **Lightning Fast:** Get detailed code reviews in seconds, not days—powered by parallelized LLM processing
-- [🔧] **Vendor Agnostic:** Works with any language model provider (OpenAI, Anthropic, Google, local models, etc.)
-- [🔒] **Private & Secure:** Your code goes directly to your chosen LLM inference provider or local model—no intermediary servers
-- [🌐] **Universal:** Supports all major programming languages and frameworks  
-- [🔍] **Comprehensive Analysis:** Detect issues across security, performance, maintainability, best practices, and much more  
-- [📈] **Consistent Quality:** Never tired, never biased—consistent review quality every time  
-- [🚀] **Easy Integration:** Automatically reviews pull requests via CI/CD workflows (GitHub Actions, etc), posts results as PR comments, and reacts to maintainer comments
-- [🎛️] **Infinitely Flexible:** Adapt to any project's standards—configure review rules, severity levels, and focus areas, build custom workflows 
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture & System Design](#architecture--system-design)
+- [Technology Stack](#technology-stack)
+- [Project Structure](#project-structure)
+- [Installation & Setup](#installation--setup)
+- [Configuration](#configuration)
+- [Running the Application](#running-the-application)
+- [Usage Workflow](#usage-workflow)
+- [API Reference](#api-reference)
+- [Future Improvements](#future-improvements)
+- [License & Attribution](#license--attribution)
 
-## 🎯 Perfect For<a id="-perfect-for"></a>
+---
 
-- Solo developers who want expert-level code review without the wait
-- Teams looking to catch issues before human review
-- Open source projects maintaining high code quality at scale
-- CI/CD pipelines requiring automated quality gates
+## 📖 Overview
 
-✨ See [code review in action](https://github.com/Nayjest/Gito/pull/99) ✨
+Modern software development often suffers from incomplete documentation, delayed code reviews, and hidden security vulnerabilities. **CodeSense** addresses these challenges by scanning entire repositories (or local directories) and generating comprehensive, production-ready technical reports spanning:
 
-## 🌐 Supported Platforms & Integrations<a id="-supported-platforms--integrations"></a>
+1. **Executive Summaries & Architectural Maps**: Visualizing data flows, module hierarchies, and system boundaries with automated Mermaid.js diagrams.
+2. **Deep Security & Bug Detection**: Pinpointing vulnerabilities, unhandled edge cases, authentication flaws, and OWASP Top 10 risks with file paths and line ranges.
+3. **Complexity & Quality Benchmarks**: Calculating cyclomatic complexity heuristics, maintainability scores, and test coverage indicators.
+4. **Interactive RAG AI Assistant**: An integrated conversational interface backed by ChromaDB vector embeddings that answers natural-language questions about reviewed codebases with source-cited precision.
 
-### 🧩 Git Platforms
-| Platform    | Status               |
-|-------------|----------------------|
-| GitHub      | ✅ Supported         |
-| GitLab      | 🧪 Supported (Beta)  |
-| Bitbucket   | 🛠️ Planned           |
-| Local / CLI | ✅ Supported         |
+---
 
-> ℹ️ Gito ships ready-to-use CI/CD workflows for these platforms, 
-> with full support for triggering actions via PR comments, automatic review posting, and PR lifecycle integration.  
-> 
-> Not on this list? Gito works anywhere—via custom CI/CD pipelines or directly from the CLI.
-### 🤖 LLM Providers / Runtimes
-| Provider / Runtime                                                                              | Status        |
-|-------------------------------------------------------------------------------------------------|---------------|
-| OpenAI-compatible APIs <br>`Mistral, xAI, Azure, Amazon Bedrock, OpenRouter, Fireworks, and much more` | ✅ Supported  |
-| Anthropic API                                                                                          | ✅ Supported  |
-| Google API                                                                                             | ✅ Supported  |
-| Local LLM Services<br/>`Ollama, vLLM, llama.cpp, SGLang, LM Studio,  etc.`                             | ✅ Supported  |
-| Embedded Inference<br/> using `PyTorch / Transformers` or custom python inference function                  | ✅ Supported  |
-| Working on top of CLI-based LLM Tools / Coding Agent CLIs <br>`Claude Code, Gemini CLI, etc.`          | ✅ Supported  |
+## ✨ Key Features
 
-### 🗂️ Issue Trackers
-| Tool   | Status        | Documentation |
-|--------|---------------|---------------|
-| Jira   | ✅ Supported  | [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md) ↗ |
-| Linear | ✅ Supported  | [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md) ↗ |
+- **⚡ Full Codebase Deep Review**: Multi-stage sequential AI generation that analyzes entry points, schemas, controllers, middleware, and dependencies into a 22-section technical specification document.
+- **🛡️ Security & Vulnerability Analysis**: Detailed detection of injection risks, hardcoded credentials, authorization bypasses, and sanitization gaps.
+- **📊 Code Quality & Complexity Benchmarks**: Automated calculation of file sizes, dependency counts, health scores, and categorized issues (Critical, Major, Minor, Info).
+- **💬 Interactive RAG AI Assistant**: Conversational code queries powered by ChromaDB vector similarity search and local Ollama (`qwen2.5:3b`) or cloud LLMs (Gemini, OpenAI, Groq).
+- **🎨 Modern Developer UI / UX**: High-contrast, accessibility-focused interface with seamless **Dark (`#0d1117`)** and **Light (`#F6F8FB`)** themes.
+- **⌨️ Universal Command Palette (`Ctrl+K`)**: Quick navigation, theme toggling, review triggering, and shortcuts accessible anywhere.
+- **📜 Review History & Search**: Persistent MongoDB storage for past review reports with keyword filtering and quick-load capabilities.
+- **🔒 Authentication & Role-Based Access**: Secure JWT authentication, bcrypt password hashing, and a dedicated **Admin Dashboard** for system monitoring and user management.
+- **📥 One-Click Export**: Download complete architectural documentation and reviews as formatted Markdown files.
 
-> 🚀 More platforms and integrations are coming — Gito is built to grow with your stack.
+---
 
-## 🔒 Security & Privacy<a id="-security--privacy"></a>
+## 🏗️ Architecture & System Design
 
-Gito keeps your source code private by design:
-it is designed as a **stateless, client-side tool** with a strict zero-retention policy.
+CodeSense operates as a decoupled three-tier architecture:
 
-- **No middleman:** Source code is transmitted directly from your environment (CI/CD runner or local machine)
-  to your explicitly configured LLM provider.
-  If you use a local model, your code never leaves your network.
-  We never see your code.
-- **No data collection:** Your code isn't stored, logged, or retained by Gito.
-- **Fully auditable:** 100% open source. Verify every line yourself.
-
-## 🚀 Quickstart<a id="-quickstart"></a>
-
-### 1. Review Pull Requests via GitHub Actions<a id="1-review-pull-requests-via-github-actions"></a>
-
-Create a `.github/workflows/gito-code-review.yml` file with the following content:
-```yaml
-name: "Gito: AI Code Review"
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: "Pull Request number"
-        required: true
-jobs:
-  review:
-    runs-on: ubuntu-latest
-    permissions: { contents: read, pull-requests: write } # 'write' for leaving the summary comment
-    steps:
-    - uses: actions/checkout@v7
-      with: { fetch-depth: 0 }
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with: { python-version: "3.13" }
-    - name: Install AI Code Review tool
-      run: pip install gito.bot~=4.1
-    - name: Run AI code analysis
-      env:
-        LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        LLM_API_TYPE: openai
-        MODEL: "gpt-5.5"
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PR_NUMBER_FROM_WORKFLOW_DISPATCH: ${{ github.event.inputs.pr_number }}
-      run: |
-        gito --verbose review
-        gito github-comment --token ${{ secrets.GITHUB_TOKEN }}
-    - uses: actions/upload-artifact@v7
-      with:
-        name: ai-code-review-results
-        path: |
-          code-review-report.md
-          code-review-report.json
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 CodeSense Frontend (Port 5173)              │
+│       React 19 + TypeScript + Vite + Vanilla Design System  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ HTTP / REST / JSON
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Node.js Gateway (Port 4000)                 │
+│      Express-style HTTP Server, JWT Auth & MongoDB Models    │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │ Async Subprocess             │ HTTP / Proxy
+               ▼                              ▼
+┌──────────────────────────────┐ ┌────────────────────────────┐
+│   Review Generator (Python)  │ │  FastAPI Chat Service      │
+│  Sequential Context Packing  │ │  ChromaDB RAG + Vector     │
+│  microcore + LLM Orchestrator│ │  Embeddings (Port 8000)    │
+└──────────────────────────────┘ └────────────────────────────┘
 ```
 
-> ⚠️ Make sure to add `LLM_API_KEY` to your repository's GitHub secrets.
+1. **Client Tier**: Vite + React 19 application providing reactive review state, live markdown rendering, Mermaid diagram rendering, and command palette navigation.
+2. **API Tier**: Node.js backend managing user authentication, job polling, review history in MongoDB, and request forwarding.
+3. **AI Execution Tier**:
+   - **Review Engine**: Multi-call Python script using `microcore` that categorizes repository files into high-priority architectures, models, and controllers, generating focused review sections without token overflow.
+   - **RAG Engine**: FastAPI microservice on port 8000 indexing review markdown into vector embeddings in ChromaDB to answer follow-up technical queries.
 
-💪 Done!  
-PRs to your repository will now receive AI code reviews automatically. ✨  
-See [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md) for more details.
+---
 
-Alternatively, install Gito locally and run `gito deploy` from your repository root.
-The deployment wizard will guide you through setting up AI-powered code reviews and automatically generate or update the required workflow files. GitHub Actions and GitLab CI are both supported.
-For GitLab, see the [GitLab Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/gitlab_setup.md), or refer to the [GitLab workflow templates](https://github.com/Nayjest/Gito/tree/main/gito/tpl/workflows/gitlab) for manual configuration.
-<img width="893" height="833" alt="image" src="https://github.com/user-attachments/assets/4bdfe954-9c0e-4df1-8e9c-4ea8b43b4f79" />
+## 💻 Technology Stack
 
+### Frontend
+- **Framework**: React 19 (TypeScript)
+- **Bundler & Dev Server**: Vite
+- **Styling**: Vanilla CSS with custom tokens and theme variables (Dark / Light mode)
+- **Icons**: Lucide React
+- **Diagrams**: Mermaid.js
+- **Routing**: React Router DOM v6
 
-### 2. Running Code Analysis Locally<a id="2-running-code-analysis-locally"></a>
+### Backend & Database
+- **Runtime**: Node.js (v18+)
+- **Database**: MongoDB with Mongoose ODM
+- **Authentication**: JSON Web Tokens (JWT) + bcryptjs
+- **Environment**: dotenv
 
-#### 2.1 Install Gito locally
+### AI & Machine Learning Services
+- **Framework**: Python 3.10+ (FastAPI + Uvicorn)
+- **Vector Database**: ChromaDB (persistent vector storage)
+- **LLM Orchestration**: `microcore`
+- **Supported Models**:
+  - Local: Ollama (`qwen2.5:3b`, `llama3`, `mistral`)
+  - Cloud: Google Gemini (`gemini-flash-lite-latest`), OpenAI (`gpt-4o-mini`), Groq (`llama-3.3-70b-versatile`)
 
-> **Note:** If you use [uvx](https://docs.astral.sh/uv/guides/tools/), you can skip this step.  
-> When using commands like `uvx gito.bot setup`, `uvx gito.bot review`, uvx will install everything required on demand.  
+---
 
+## 📁 Project Structure
 
-**Option 1:** Install [gito.bot](https://github.com/Nayjest/Gito) using [pip](https://en.wikipedia.org/wiki/Pip_(package_manager)).
-
-**Prerequisites:** 
-- [Python](https://www.python.org/downloads/) 3.11 / 3.12 / 3.13  
-- [Git](https://git-scm.com)
-
-Run the following command to install the latest stable release from PyPI:
-```bash
-pip install gito.bot
+```
+codesense/
+├── backend/
+│   ├── server.js              # Node.js API server & job manager (port 4000)
+│   ├── db.js                  # MongoDB connection & Mongoose schemas
+│   ├── generate_review_doc.py # Python LLM multi-stage review generator
+│   ├── chat_service.py        # FastAPI ChromaDB RAG chat service (port 8000)
+│   ├── chat_requirements.txt  # Python requirements for chat service
+│   ├── .env.example           # Environment template with secure defaults
+│   └── package.json           # Node backend dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx            # Main router, layout, and command palette
+│   │   ├── AuthContext.tsx    # User session and JWT token manager
+│   │   ├── ThemeContext.tsx   # Dark/Light theme provider
+│   │   ├── components/        # Reusable UI elements (CommandPalette, ThemeToggle)
+│   │   └── pages/
+│   │       ├── ReviewPage.tsx # Review dashboard, progress monitor, and report viewer
+│   │       ├── ChatPage.tsx   # Interactive RAG code chat assistant
+│   │       ├── HistoryPage.tsx# Review history search and management
+│   │       ├── LoginPage.tsx  # User authentication
+│   │       ├── SignupPage.tsx # User registration
+│   │       └── AdminPage.tsx  # Administrator analytics & user oversight
+│   ├── index.html             # CodeSense application entry HTML
+│   ├── vite.config.ts         # Vite configuration with API proxy
+│   └── package.json           # Frontend dependencies
+├── storage/                   # Local workspace storage for repo clones
+│   ├── temp/                  # Cloned repository working directory
+│   └── embedding_db/          # Persistent ChromaDB vector collections
+├── .github/workflows/ci.yml   # Continuous Integration pipeline
+├── start_chat_service.bat     # Windows startup shortcut for Python chat
+├── Makefile                   # Development workflow commands
+├── pyproject.toml             # Python project dependencies
+├── LICENSE                    # MIT License
+└── README.md                  # Project documentation
 ```
 
+---
 
-> **Troubleshooting:**  
-> pip may also be available via CLI as `pip3` depending on your Python installation.
+## 🚀 Installation & Setup
 
-To install from repository source / specific branch:
+### Prerequisites
+- **Node.js**: v18.0 or newer
+- **Python**: v3.10 or newer with `pip`
+- **Git**: Installed and available in PATH
+- **MongoDB**: A running local instance or MongoDB Atlas cluster URI
+- **Ollama** (Optional for local offline inference): Download from [ollama.com](https://ollama.com) and pull `qwen2.5:3b`.
+
+### Step-by-Step Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone <repository_url> codesense
+   cd codesense
+   ```
+
+2. **Set up the Python Virtual Environment**:
+   ```bash
+   # Windows
+   python -m venv .venv
+   .venv\Scripts\activate
+
+   # Linux / macOS
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+3. **Install Python dependencies**:
+   ```bash
+   pip install -r backend/chat_requirements.txt
+   pip install ai-microcore GitPython google-genai anthropic python-dotenv
+   ```
+
+4. **Install Backend Node dependencies**:
+   ```bash
+   cd backend
+   npm install
+   cd ..
+   ```
+
+5. **Install Frontend dependencies**:
+   ```bash
+   cd frontend
+   npm install
+   cd ..
+   ```
+
+---
+
+## ⚙️ Configuration
+
+Copy the example configuration to create your active backend environment file:
+
 ```bash
-pip install git+https://github.com/Nayjest/Gito.git@<branch-or-tag>
+cp backend/.env.example backend/.env
 ```
-**Option 2:** Windows Standalone Installer
 
-Download the latest Windows installer from [Releases](https://github.com/Nayjest/Gito/releases).
+Edit `backend/.env` with your preferred settings:
 
-The installer includes:
-- Standalone executable (no Python required)
-- Automatic PATH configuration
-- Start Menu shortcuts
-- Easy uninstallation
-
-#### 2.2 Configure LLM connection
-
-The following command will perform one-time setup using an interactive wizard.
-You will be prompted to enter LLM configuration details (API type, API key, etc).
-Configuration will be saved to `~/.gito/.env`.
-```bash
-gito setup
-```
-Alternatively, if you have `uvx` installed, you can run the setup command via `uvx`:
-```bash
-uvx gito.bot setup
-```
-
-> **Troubleshooting:**  
-> On some systems, `gito` command may not become available immediately after installation.  
-> Try restarting your terminal or running `python -m gito` instead.
-
-
-#### 2.3 Perform your first AI code review locally
-
-**Step 1:** Navigate to your repository root directory.  
-**Step 2:** Switch to the branch you want to review.  
-**Step 3:** Run the following command:
-```bash
-gito review
-```
-
-> **Note:** This will analyze the current branch against the repository main branch by default.  
-> Files that are not staged for commit will be ignored.  
-> See `gito --help` for more options.
-
-**Reviewing remote repository**
-```bash
-gito remote git@github.com:owner/repo.git <FEATURE_BRANCH>..<MAIN_BRANCH>
-```
-Use interactive help for details:
-```bash
-gito remote --help
-```
-
-## 🔧 Configuration<a id="-configuration"></a>
-
-Gito uses a two-layer configuration model:
-
-| Scope | Location | Purpose |
-|-------|----------|---------|
-| **Environment** | `~/.gito/.env` or OS environment variables | LLM provider, model, API keys, concurrency |
-| **Project** | `<repo>/.gito/config.toml` | Review behavior, prompts, templates, integrations |
-
-> **Note:** Environment configuration defines external resources and credentials — it's machine-specific and never committed to version control. Project configuration defines review behavior and can be shared across your team.
-
-### Environment Configuration
-
-Environment settings control LLM inference, API Keys and apply system-wide.
-
-Gito uses [ai-microcore](https://github.com/Nayjest/ai-microcore) for vendor-agnostic LLM access. All settings are configured via OS environment variables or `.env` files.
-
-**Default location:** `~/.gito/.env`  
-*(Created automatically via `gito setup`)*
-
-#### Example
-```bash
-# ~/.gito/.env
+```env
+# ── LLM (AI Model) ───────────────────────────────────────────────────────────
+# For Google Gemini (Fast Cloud Inference):
 LLM_API_TYPE=openai
-LLM_API_KEY=sk-...
-LLM_API_BASE=https://api.openai.com/v1/
-MODEL=gpt-5.5
-MAX_CONCURRENT_TASKS=20
+LLM_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_API_KEY=your_gemini_api_key_here
+MODEL=gemini-flash-lite-latest
+CHAT_MODEL=gemini-flash-lite-latest
+
+# Or for local Ollama (Offline):
+# LLM_API_TYPE=openai
+# LLM_API_BASE=http://localhost:11434/v1
+# LLM_API_KEY=ollama
+# MODEL=qwen2.5:3b
+# CHAT_MODEL=qwen2.5:3b
+
+# ── Database (MongoDB) ───────────────────────────────────────────────────────
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/codesense?retryWrites=true&w=majority
+
+# ── Authentication ───────────────────────────────────────────────────────────
+JWT_SECRET=your_super_secret_jwt_key
+ADMIN_EMAIL=admin@codesense.dev
 ```
 
-For all supported options, see the [ai-microcore configuration guide](https://github.com/Nayjest/ai-microcore?tab=readme-ov-file#%EF%B8%8F-configuring).
+> **Note**: The user who registers with the email matching `ADMIN_EMAIL` is automatically granted the **admin** role.
 
-#### CI/CD Environments
+---
 
-In CI workflows, configure LLM settings via workflow environment variables. Use your platform's secrets management (GitHub Secrets, GitLab CI Variables) for API keys.
+## 🏃 Running the Application
 
+To run the full CodeSense stack, start each service:
 
-### Project Configuration
-
-Gito supports per-repository customization through a `.gito/config.toml` file placed at the root of your project. This allows you to tailor code review behavior to your specific codebase, coding standards, and workflow requirements.
-
-#### Configuration Inheritance Model
-
-Project settings follow a layered override model:
-
-**Bundled Defaults** ([config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml)) → **Project Config** (`<your-repo>/.gito/config.toml`)
-
-Any values defined in your project's `.gito/config.toml` are merged on top of the built-in defaults. You only need to specify the settings you want to change—everything else falls back to sensible defaults.
-
-#### Common Customizations
-
-- **Review prompts** — Tailor AI instructions, review criteria, and quality thresholds
-- **Output templates** — Customize report format for GitHub comments and CLI
-- **Post-processing** — Python snippets to filter or transform detected issues
-- **Bot behavior** — Mention triggers, retries, comment handling
-- **Pipeline integrations** — Jira, Linear, etc.
-
-Explore the bundled [config.toml](https://github.com/Nayjest/Gito/blob/main/gito/config.toml) for the complete list of available options.
-
-#### Example
-```toml
-# .gito/config.toml
-mention_triggers = ["gito", "/check"]
-collapse_previous_code_review_comments = true
-
-# Files to provide as context
-aux_files = [
-    'documentation/command_line_reference.md'
-]
-
-exclude_files = [
-    'poetry.lock',
-]
-
-[prompt_vars]
-# Custom instructions injected into the system prompts
-awards = ""  # Disable awards
-requirements = """
-- All public functions must have docstrings.
-"""
-```
-
-For detailed guidance, see the [📖 Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md).
-
-
-## 📚 Guides & Reference<a id="-guides--reference"></a>
-
-For more detailed information, check out these articles:
-
-- [Command Line Reference](https://github.com/Nayjest/Gito/blob/main/documentation/command_line_reference.md)
-- [Configuration Cookbook](https://github.com/Nayjest/Gito/blob/main/documentation/config_cookbook.md)
-- [GitHub Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/github_setup.md)
-- [GitLab Setup Guide](https://github.com/Nayjest/Gito/blob/main/documentation/gitlab_setup.md)
-- Integrations
-  - [Linear Integration](https://github.com/Nayjest/Gito/blob/main/documentation/linear_integration.md)
-  - [Atlassian Jira Integration](https://github.com/Nayjest/Gito/blob/main/documentation/jira_integration.md)
-- [Documentation generation with Gito](https://github.com/Nayjest/Gito/blob/main/documentation/documentation_generation.md)
-- [Troubleshooting](https://github.com/Nayjest/Gito/blob/main/documentation/troubleshooting.md)
-
-Or browse all documentation in the [`/documentation`](https://github.com/Nayjest/Gito/tree/main/documentation) directory.
-
-
-## 🚧 Known Limitations<a id="-known-limitations"></a>
-
-Gito cannot modify files inside `.github/workflows` when reacting to GitHub PR comments (e.g., "Gito fix issue 2").  
-This is a GitHub security restriction that prevents workflows from modifying other workflow files using the default `GITHUB_TOKEN`.
-
-While using a Personal Access Token (PAT) with the `workflow` scope would bypass this limitation, it is not recommended as a workaround.
-PATs have broader permissions, longer lifespans, and are tied to individual user accounts, making them less secure than the default `GITHUB_TOKEN` for CI/CD pipelines.
-
-
-## 💻 Development Setup<a id="-development-setup"></a>
-
-Clone the repository and navigate to it:
-
+### 1. Start the Node.js Backend (Port 4000)
 ```bash
-git clone https://github.com/Nayjest/Gito.git
-cd Gito
+# From project root with .venv activated
+node backend/server.js
 ```
 
-<div><img align="right" width="460" src="https://raw.githubusercontent.com/Nayjest/Gito/main/press-kit/character/gito_fullbody_1.jpg">
-
-Install dependencies:
-
+### 2. Start the Python RAG Chat Service (Port 8000)
 ```bash
-make install
+# Windows
+start_chat_service.bat
+
+# Linux / macOS
+python backend/chat_service.py
 ```
 
-> **Note:** If `make` is not available on your system, you can run the underlying command directly:  
-> `pip install -e ".[dev]"`  
-> See the [Makefile](https://github.com/Nayjest/Gito/blob/main/Makefile) for all available commands.
-
-Format code and check style:
-
+### 3. Start the Frontend Development Server (Port 5173)
 ```bash
-make black
-make cs
+cd frontend
+npm run dev
 ```
 
-Run tests:
+Open your browser to: **`http://localhost:5173`**
 
-```bash
-pytest
-```
+---
 
-</div>
+## 💡 Usage Workflow
 
-## 🤝 Contributing<a id="-contributing"></a>
+1. **Sign Up / Sign In**:
+   - Create an account at `/signup`. If using `admin@codesense.dev`, you will receive administrative permissions.
+2. **Submit a Repository for Review**:
+   - On the homepage (`/`), enter a local file path (e.g. `C:\Projects\my-app`) or a public Git URL (e.g. `https://github.com/owner/repo.git`).
+   - Click **Run Enterprise Review**.
+3. **Monitor Progress**:
+   - Watch real-time progress as CodeSense packs source files, models, routes, and prompts the AI model.
+4. **Explore the Results**:
+   - **Summary Tab**: High-level scores, key highlights, and executive summary.
+   - **Architecture Tab**: Rendered Mermaid.js component diagrams, data flows, and tech stack tables.
+   - **Quality & Security**: Tabulated vulnerability audits, maintainability assessments, and test coverage recommendations.
+   - **Complexity Benchmarks**: Detailed file-by-file metrics and issue distributions.
+   - **Full Documentation**: Complete 22-section markdown document ready for copy or download.
+5. **Ask Follow-up Questions**:
+   - Click **Open in Chat Assistant** to launch the interactive RAG interface. Ask questions like *"Explain the authentication flow"* or *"How can I refactor the database queries?"*.
 
-**Looking for a specific feature or having trouble?**  
-Contributions are welcome! ❤️  
-See [CONTRIBUTING.md](https://github.com/Nayjest/Gito/blob/main/CONTRIBUTING.md) for details.
+---
 
-## 📝 License<a id="-license"></a>
+## 🔌 API Reference
 
-Licensed under the [MIT License](https://github.com/Nayjest/Gito/blob/main/LICENSE).
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `POST` | `/api/auth/register` | Register a new user | No |
+| `POST` | `/api/auth/login` | Log in and receive JWT | No |
+| `GET`  | `/api/auth/me` | Fetch authenticated user profile | Yes |
+| `POST` | `/api/full-review/start` | Start an enterprise review job | Optional |
+| `GET`  | `/api/full-review/status/:id` | Poll review progress and output | No |
+| `GET`  | `/api/reviews` | List past reviews for current user | Yes |
+| `GET`  | `/api/reviews/:id` | Fetch specific review details | Optional |
+| `DELETE`| `/api/reviews/:id` | Delete a saved review | Yes |
+| `POST` | `/api/chat/index` | Index review markdown into ChromaDB | Optional |
+| `POST` | `/api/chat/ask` | Query code review knowledge base via RAG | Optional |
+| `GET`  | `/api/admin/users` | List all users and review counts | Admin Only |
+| `GET`  | `/api/health` | Service health check | No |
 
-© 2025–2026 [Vitalii Stepanenko](mailto:mail@vitaliy.in)
-lokesh
+---
+
+## 🔮 Future Improvements
+
+- [ ] Automated GitHub / GitLab Webhook triggers for Pull Requests.
+- [ ] Integration with SonarQube / ESLint rules for hybrid static-AI analysis.
+- [ ] Multi-repository comparative analytics and diff benchmarking.
+- [ ] PDF and HTML export formats with embedded corporate templates.
+- [ ] Support for specialized fine-tuned code review models.
+
+---
+
+### Acknowledgments
+- Developed as an academic software engineering project (**CodeSense**).

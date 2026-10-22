@@ -1,12 +1,8 @@
-# Byte-compiled / optimized / DLL files
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -26,47 +22,41 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-# *.spec  # Keeping gito.spec for Windows installer build
-
-# Installer output
-installer_output/
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-coverage.svg
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
-
-# Environments
+# Virtual environments
 .env
-.venv
+backend/.env
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
 
-.idea
-.aico/*
-!.aico/project.json
-storage
-code-review-report.*
-*.zip
+# Node.js
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# ChromaDB & Vector Storage
+chroma_db/
+backend/chroma_db/
+storage/temp/*
+!storage/temp/.gitkeep
+storage/embedding_db/*
+!storage/embedding_db/.gitkeep
+
+# IDEs & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs & temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
