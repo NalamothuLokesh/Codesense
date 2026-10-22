@@ -65,7 +65,15 @@ const ADMIN_EMAIL      = (process.env.ADMIN_EMAIL || 'admin@codesense.dev').toLo
 // ── Google OAuth 2.0 Configuration ───────────────────────────────────────────
 const GOOGLE_CLIENT_ID     = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
-const GOOGLE_REDIRECT_URI  = (process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/api/auth/google/callback').trim();
+function getGoogleRedirectUri() {
+  if (process.env.GOOGLE_REDIRECT_URI && process.env.GOOGLE_REDIRECT_URI.trim()) {
+    return process.env.GOOGLE_REDIRECT_URI.trim();
+  }
+  if (process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim()) {
+    return `${process.env.FRONTEND_URL.trim().replace(/\/+$/, '')}/api/auth/google/callback`;
+  }
+  return 'http://localhost:5173/api/auth/google/callback';
+}
 
 // ── In-memory job store ───────────────────────────────────────────────────────
 const jobs = new Map();
@@ -903,7 +911,7 @@ const server = http.createServer(async (req, res) => {
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         new URLSearchParams({
           client_id: GOOGLE_CLIENT_ID,
-          redirect_uri: GOOGLE_REDIRECT_URI,
+          redirect_uri: getGoogleRedirectUri(),
           response_type: 'code',
           scope: 'openid email profile',
           access_type: 'online',
@@ -943,7 +951,7 @@ const server = http.createServer(async (req, res) => {
             code,
             client_id: GOOGLE_CLIENT_ID,
             client_secret: GOOGLE_CLIENT_SECRET,
-            redirect_uri: GOOGLE_REDIRECT_URI,
+            redirect_uri: getGoogleRedirectUri(),
             grant_type: 'authorization_code',
           }),
         });
