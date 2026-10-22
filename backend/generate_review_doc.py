@@ -34,10 +34,26 @@ TEXT_EXT = {
     ".cs",".cpp",".c",".h",".html",".css",".scss",".json",".toml",
     ".yaml",".yml",".md",".txt",".sh",".sql",".graphql",".xml",".cfg",
 }
-MAX_FILE    = 4_000
-MAX_HI      = 8_000
-MAX_CTX     = 32_000
-MAX_FILES   = 80
+def is_local():
+    base = os.getenv("LLM_API_BASE", "")
+    return ("127.0.0.1" in base or "localhost" in base or
+            os.getenv("LLM_API_TYPE", "").lower() in ("ollama","llamacpp","lmstudio","none"))
+
+def get_limits():
+    if is_local():
+        return {
+            "max_file": 4_000,
+            "max_hi": 8_000,
+            "max_ctx": 32_000,
+            "max_files": 60,
+        }
+    return {
+        "max_file": 12_000,
+        "max_hi": 36_000,
+        "max_ctx": 90_000,
+        "max_files": 100,
+    }
+
 LLM_TIMEOUT = 420      # ~7 min timeout per call
 
 
@@ -273,19 +289,26 @@ def collect_repo_files(repo_path: str):
 
     all_discovered.sort(key=file_priority)
 
+    limits = get_limits()
     collected = []
     total = 0
     for rel, full, ext, is_hi in all_discovered:
-        if total >= MAX_FILES: break
+        if total >= limits["max_files"]: break
         try:
             content = full.read_text(encoding="utf-8", errors="ignore")
         except:
             continue
         if not content.strip(): continue
         content = "\n".join(l.rstrip() for l in content.splitlines() if l.strip())
-        lim = MAX_HI if is_hi else MAX_FILE
+        lim = limits["max_hi"] if is_hi else limits["max_file"]
         if len(content) > lim:
-            content = content[:lim] + "\n\n// [NOTE: Remaining lines of this file omitted for review prompt compactness - NOT a code defect]"
+            if is_hi and lim >= 8_000:
+                half = lim // 2
+                top_part = content[:half]
+                bottom_part = content[-half:]
+                content = top_part + "\n\n// [NOTE: Middle lines omitted for prompt compactness - NOT a code defect]\n\n" + bottom_part
+            else:
+                content = content[:lim] + "\n\n// [NOTE: Remaining lines of this file omitted for review prompt compactness - NOT a code defect]"
         collected.append({"path": rel, "content": content})
         total += 1
 
@@ -474,19 +497,26 @@ Identify the real user personas discovered in this project:
 |---|---|---|
 (List 2 to 4 real roles and their actual use cases from the code)
 
-Create a single valid Mermaid Use Case diagram with a System Boundary showing the actual actors connected to their primary use cases in this project:
+Create a single valid Mermaid Use Case diagram with a System Boundary showing the actual actors connected to their primary use cases in this project.
+CRITICAL USE CASE MAPPING RULES:
+1. Connect regular / primary users (e.g. Standard Developer, End User) to ALL primary features they interact with (e.g. Submitting Code Reviews, Interactive AI Chat, Viewing Dashboards, Authentication).
+2. Elevated / Admin actors should connect to privileged administrative features (e.g. RBAC, User Management, Audit Logs, Platform Configuration) plus any core user features they also access.
+3. NEVER restrict the application's primary core feature (such as Code Review or Core Analysis) exclusively to Admins unless the codebase strictly restricts it.
+4. Mermaid syntax: Double-quote node labels inside parentheses or brackets, e.g. UC1["Submit Code Review"].
 ```mermaid
 graph LR
-    subgraph System Boundary
-        UC1(Authentication & Login)
-        UC2(Core Feature Action 1)
-        UC3(Core Feature Action 2)
-        UC4(Reports & Administrative Controls)
+    subgraph "System Boundary"
+        UC_Auth["Authentication & Login"]
+        UC_Core1["Primary Feature (e.g. AI Code Review)"]
+        UC_Core2["Interactive Feature (e.g. AI Chat / Query)"]
+        UC_Admin["Administrative & RBAC Controls"]
     end
-    Actor1([Primary User]) --> UC1
-    Actor1 --> UC2
-    Actor2([Admin / Elevated User]) --> UC3
-    Actor2 --> UC4
+    Actor_User(["Standard User / Developer"]) --> UC_Auth
+    Actor_User --> UC_Core1
+    Actor_User --> UC_Core2
+    Actor_Admin(["Administrator / Superadmin"]) --> UC_Auth
+    Actor_Admin --> UC_Admin
+    Actor_Admin --> UC_Core1
 ```
 
 ---
@@ -629,11 +659,7 @@ Provide a definitive, evidence-based conclusion summarizing the entire code revi
 """
 
 
-# ── Runtime Helpers ───────────────────────────────────────────────────────────
-def is_local():
-    base = os.getenv("LLM_API_BASE", "")
-    return ("127.0.0.1" in base or "localhost" in base or
-            os.getenv("LLM_API_TYPE", "").lower() in ("ollama","llamacpp","lmstudio","none"))
+
 
 def write_progress(pfile, step, total, msg):
     if pfile:
@@ -711,11 +737,14 @@ async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
     serv_files  = [f for f in files if is_service(f["path"])]
     other_files = [f for f in files if f not in core_files and f not in model_files and f not in route_files and f not in auth_files]
 
+    limits = get_limits()
+    max_ctx = limits["max_ctx"]
+
     # Context packaging for 4 focused calls
-    code_call1 = pack(core_files + route_files[:6] + model_files[:4] + other_files[:6], MAX_CTX)
-    code_call2 = pack(model_files + route_files + core_files, MAX_CTX)
-    code_call3 = pack(auth_files + route_files[:6] + core_files + other_files[:4], MAX_CTX)
-    code_call4 = pack(core_files + auth_files[:4] + serv_files[:4] + other_files[:4], MAX_CTX)
+    code_call1 = pack(core_files + route_files[:6] + model_files[:4] + other_files[:6], max_ctx)
+    code_call2 = pack(core_files + route_files + model_files, max_ctx)
+    code_call3 = pack(auth_files + route_files[:6] + core_files + other_files[:4], max_ctx)
+    code_call4 = pack(core_files + auth_files[:4] + serv_files[:4] + other_files[:4], max_ctx)
 
     cx_call1 = make_context(repo_url, meta, ftree, code_call1)
     cx_call2 = make_context(repo_url, meta, ftree, code_call2)
