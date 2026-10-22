@@ -90,15 +90,17 @@ const User = mongoose.model('User', userSchema);
 
 // ── Review schema ─────────────────────────────────────────────────────────────
 const reviewSchema = new mongoose.Schema({
-  userId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   repo:       { type: String, required: true },
   branch:     { type: String, default: 'main' },
-  status:     { type: String, enum: ['running', 'done', 'error'], default: 'running' },
+  status:     { type: String, enum: ['running', 'done', 'error'], default: 'running', index: true },
   elapsedSec: { type: Number, default: null },
   markdown:   { type: String, default: null },
   error:      { type: String, default: null },
   finishedAt: { type: Date,   default: null },
 }, { timestamps: true });
+
+reviewSchema.index({ userId: 1, createdAt: -1 });
 
 const Review = mongoose.model('Review', reviewSchema);
 
