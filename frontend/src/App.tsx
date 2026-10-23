@@ -277,10 +277,10 @@ function Navbar({
           <>
             <ThemeToggle />
             <div className="nav-divider" />
-            <Link to="/login" className="btn btn-ghost btn-sm">
+            <Link to="/login" className="btn btn-ghost btn-sm nav-signin-btn">
               Sign In
             </Link>
-            <Link to="/signup" className="btn btn-primary btn-sm">
+            <Link to="/signup" className="btn btn-primary btn-sm nav-signup-btn">
               Get Started
             </Link>
           </>

@@ -110,8 +110,18 @@ export default function Sidebar({
       >
         {/* Sidebar Header */}
         <div className="sidebar-header">
+          <div className="sidebar-brand-mobile mobile-only">
+            <div className="nav-logo-box" style={{ width: 30, height: 30, borderRadius: 8 }}>
+              <Code2 size={16} strokeWidth={2.5} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 800, fontSize: '0.94rem', color: 'var(--foreground)', lineHeight: 1.2 }}>CodeSense</span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 600 }}>AI Review</span>
+            </div>
+          </div>
+
           {!collapsed && (
-            <span className="sidebar-header-label">Menu</span>
+            <span className="sidebar-header-label desktop-only">Menu</span>
           )}
 
           {/* Desktop collapse toggle */}
@@ -133,7 +143,7 @@ export default function Sidebar({
               onClick={onCloseMobile}
               aria-label="Close sidebar"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           )}
         </div>
@@ -351,8 +361,8 @@ export default function Sidebar({
           )}
         </nav>
 
-        {/* Sidebar Footer User Card */}
-        {user && (
+        {/* Sidebar Footer */}
+        {user ? (
           <div className="sidebar-footer">
             <Link
               to="/settings/profile"
@@ -387,6 +397,25 @@ export default function Sidebar({
                   </div>
                 </div>
               )}
+            </Link>
+          </div>
+        ) : (
+          <div className="sidebar-footer mobile-only" style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Link
+              to="/login"
+              className="btn btn-outline btn-sm"
+              onClick={onCloseMobile}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/signup"
+              className="btn btn-primary btn-sm"
+              onClick={onCloseMobile}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              Get Started Free
             </Link>
           </div>
         )}
