@@ -722,19 +722,25 @@ SECTION_SPECS = [
 def sanitize_mermaid_in_markdown(md: str) -> str:
     """
     Finds and sanitizes all ```mermaid blocks in the markdown report:
-    - Wraps node labels in proper double-quotes
-    - Sanitizes node IDs with dots/spaces/slashes so Mermaid doesn't crash
-    - Double quotes subgraph names
-    - Normalizes arrows and line connections
+    - Normalizes Unicode smart/curly quotes to standard ASCII
+    - Preserves diagram directives (graph TD, graph LR, etc.)
+    - Ensures 'end' is on its own separate line
+    - Quotes node labels in shapes properly
+    - Sanitizes subgraph titles with straight double quotes
     """
     if not md or "```mermaid" not in md:
         return md
 
     def sanitize_block(match: re.Match) -> str:
         code = match.group(1).strip()
-        lines = []
-        node_id_map = {}
+        # Normalize Unicode smart/curly quotes
+        code = re.sub(r'[\u201C\u201D\u201E\u201F\u2033\u2036]', '"', code)
+        code = re.sub(r'[\u2018\u2019\u201A\u201B\u2032\u2035]', "'", code)
 
+        # Normalize line-break before statements following 'end'
+        code = re.sub(r'(\bend\b)\s+([a-zA-Z0-9_]+)', r'\1\n    \2', code)
+
+        lines = []
         for raw_line in code.splitlines():
             line = raw_line.rstrip()
             stripped = line.strip()
@@ -742,13 +748,24 @@ def sanitize_mermaid_in_markdown(md: str) -> str:
                 lines.append(line)
                 continue
 
-            # Subgraph name quoting: subgraph System Boundary -> subgraph "System Boundary"
-            m_sub = re.match(r'^(\s*subgraph\s+)([\"\']?[^\"\'\n]+[\"\']?)(\s*)$', line, re.IGNORECASE)
+            # Diagram direction directive: graph TD, flowchart LR, etc. Preserve!
+            if re.match(r'^(?:graph|flowchart|sequenceDiagram|classDiagram|erDiagram|gantt|pie|gitGraph)\b', stripped, re.IGNORECASE):
+                lines.append(line)
+                continue
+
+            # Subgraph name quoting: subgraph "System Boundary"
+            m_sub = re.match(r'^(\s*subgraph\s+)(.+)$', line, re.IGNORECASE)
             if m_sub:
                 name = m_sub.group(2).strip()
-                if not (name.startswith('"') and name.endswith('"')):
-                    name = f'"{name.strip("\'")}"'
-                lines.append(f'{m_sub.group(1)}{name}{m_sub.group(3)}')
+                if name.startswith('"') and name.endswith('"'):
+                    lines.append(f'{m_sub.group(1)}{name}')
+                else:
+                    clean_name = name.strip('"\'').replace('"', "'")
+                    lines.append(f'{m_sub.group(1)}"{clean_name}"')
+                continue
+
+            if stripped == 'end':
+                lines.append(line)
                 continue
 
             # Normalise common arrow markers
@@ -759,43 +776,27 @@ def sanitize_mermaid_in_markdown(md: str) -> str:
 
             def quote_shape(m):
                 prefix = m.group(1)
-                raw_id = m.group(2).strip()
+                node_id = m.group(2).strip()
                 opener = m.group(3)
                 label = m.group(4).strip()
                 closer = m.group(5)
 
-                # Clean node ID: replace dots, spaces, slashes with underscores
-                clean_id = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_id)
-                if not clean_id or clean_id[0].isdigit():
-                    clean_id = 'N_' + clean_id
-
-                if raw_id != clean_id:
-                    node_id_map[raw_id] = clean_id
-
-                # Ensure proper quote wrapping for label
                 if label.startswith('"') and label.endswith('"') and len(label) >= 2:
                     clean_label = label
                 else:
                     inner = label.strip('"\'').replace('"', "'")
                     clean_label = f'"{inner}"'
 
-                return f'{prefix}{clean_id}{opener}{clean_label}{closer}'
+                return f'{prefix}{node_id}{opener}{clean_label}{closer}'
 
-            # Match shape definitions: ID["label"], ID[label], ID(["label"]), ID[("label")]
+            # Match shape definitions on single lines (NO whitespace in node ID!)
             line = re.sub(
-                r'(^|\s+|-->\s*|---\s*|==>\s*|\|\s*)([a-zA-Z0-9_.\s-]+?)(\(\[|\[\(|\[|\(|\{\{)(.+?)(\]\)|\)\]|\]|\)|\}\})(?=\s*(-->|---|==>|\||$))',
+                r'(^|\s+|-->\s*|---\s*|==>\s*|\|\s*)([a-zA-Z0-9_-]+)(\(\[|\[\(|\[|\(|\{\{)(.+?)(\]\)|\)\]|\]|\)|\}\})(?=\s*(-->|---|==>|\||$))',
                 quote_shape,
                 line
             )
 
             lines.append(line)
-
-        # Replace bare node ID references if ID was cleaned
-        if node_id_map:
-            for idx, line in enumerate(lines):
-                for old_id, new_id in node_id_map.items():
-                    line = re.sub(r'(^|\s+)' + re.escape(old_id) + r'(\s*-->|\s*---|\s*==>|\s*$)', r'\1' + new_id + r'\2', line)
-                lines[idx] = line
 
         return "```mermaid\n" + "\n".join(lines) + "\n```"
 

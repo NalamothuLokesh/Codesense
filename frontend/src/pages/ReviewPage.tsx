@@ -73,55 +73,84 @@ function saveJob(j: JobState) {
 }
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
-function sanitizeMermaid(code: string): string {
+export function sanitizeMermaid(code: string): string {
+  if (!code) return ''
   let c = code.trim()
+  // Normalize Unicode quotes (curly/smart quotes to standard ASCII)
+  c = c.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+  c = c.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")
+
+  // Strip markdown fence markers if accidentally included
   c = c.replace(/^---+$/gm, '').replace(/^[~`]{3,}.*$/gm, '')
+
+  // Normalize arrows
   c = c.replace(/\|\|--\|\{/g, '||--o{')
   c = c.replace(/\s+-->\s+/g, ' --> ')
   c = c.replace(/\s+---\s+/g, ' --- ')
   c = c.replace(/\s+==>\s+/g, ' ==> ')
 
-  // Subgraph title quoting
-  c = c.replace(/^(\s*subgraph\s+)([^"'\n]+?)(\s*)$/gim, (_, prefix, name, suffix) => {
-    const trimmed = name.trim()
-    if (trimmed.startsWith('"') && trimmed.endsWith('"')) return `${prefix}${trimmed}${suffix}`
-    return `${prefix}"${trimmed.replace(/"/g, '')}"${suffix}`
-  })
+  // Ensure 'end' is on its own separate line if followed by a statement
+  c = c.replace(/(\bend\b)\s+([a-zA-Z0-9_]+)/g, '$1\n    $2')
 
-  // Collect node ID replacements if node IDs contain dots or spaces
-  const nodeIdMap: Record<string, string> = {}
+  const lines = c.split('\n')
+  const out: string[] = []
 
-  // Quoting node labels inside shapes: ([...]), [(...)], [...], (...), {{...}}
-  c = c.replace(
-    /(^|\s+|-->\s*|---\s*|==>\s*|\|\s*)([a-zA-Z0-9_.\s-]+?)(\(\[|\[\(|\[|\(|\{\{)(.+?)(\]\)|\)\]|\]|\)|\}\})(?=\s*(-->|---|==>|\||$))/gm,
-    (_, prefix, rawId, opener, label, closer) => {
-      const nodeId = rawId.trim()
-      let cleanId = nodeId.replace(/[^a-zA-Z0-9_-]/g, '_')
-      if (!cleanId || /^[0-9]/.test(cleanId)) cleanId = 'N_' + cleanId
+  for (const rawLine of lines) {
+    let line = rawLine.trimEnd()
+    const trimmed = line.trim()
 
-      if (nodeId !== cleanId) {
-        nodeIdMap[nodeId] = cleanId
-      }
-
-      const trimmedLabel = label.trim()
-      let cleanLabel: string
-      if (trimmedLabel.startsWith('"') && trimmedLabel.endsWith('"') && trimmedLabel.length >= 2) {
-        cleanLabel = trimmedLabel
-      } else {
-        cleanLabel = `"${trimmedLabel.replace(/^["']+|["']+$/g, '').replace(/"/g, "'")}"`
-      }
-
-      return `${prefix}${cleanId}${opener}${cleanLabel}${closer}`
+    // Skip empty lines or comments
+    if (!trimmed || trimmed.startsWith('%%')) {
+      out.push(line)
+      continue
     }
-  )
 
-  // Replace bare node ID references if ID was modified
-  for (const [oldId, newId] of Object.entries(nodeIdMap)) {
-    const escaped = oldId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    c = c.replace(new RegExp(`(^|\\s+)${escaped}(\\s*-->|\\s*---|\\s*==>|\\s*\\||\\s*$)`, 'gm'), `$1${newId}$2`)
+    // Diagram direction header: graph TD, graph LR, flowchart TD, etc. Leave untouched!
+    if (/^(graph|flowchart|sequenceDiagram|classDiagram|erDiagram|gantt|pie|gitGraph)\b/i.test(trimmed)) {
+      out.push(line)
+      continue
+    }
+
+    // Subgraph start: subgraph "Title"
+    if (/^subgraph\b/i.test(trimmed)) {
+      const m = line.match(/^(\s*subgraph\s+)(.+)$/i)
+      if (m) {
+        let title = m[2].trim()
+        if (title.startsWith('"') && title.endsWith('"')) {
+          out.push(`${m[1]}${title}`)
+        } else {
+          title = title.replace(/^["']+|["']+$/g, '').replace(/"/g, "'")
+          out.push(`${m[1]}"${title}"`)
+        }
+        continue
+      }
+    }
+
+    // Standalone 'end' keyword
+    if (trimmed === 'end') {
+      out.push(line)
+      continue
+    }
+
+    // Shape labeling on a single line:
+    // e.g. NodeId[label] -> NodeId["label"]
+    // ONLY match single-word NodeId: [a-zA-Z0-9_-]+ (NO whitespace in node ID!)
+    line = line.replace(
+      /(^|\s+|-->\s*|---\s*|==>\s*|\|\s*)([a-zA-Z0-9_-]+)(\(\[|\[\(|\[|\(|\{\{)(.+?)(\]\)|\)\]|\]|\)|\}\})(?=\s*(-->|---|==>|\||$))/g,
+      (_, prefix, nodeId, opener, label, closer) => {
+        const trimmedLabel = label.trim()
+        let cleanLabel = trimmedLabel
+        if (!trimmedLabel.startsWith('"') || !trimmedLabel.endsWith('"') || trimmedLabel.length < 2) {
+          cleanLabel = `"${trimmedLabel.replace(/^["']+|["']+$/g, '').replace(/"/g, "'")}"`
+        }
+        return `${prefix}${nodeId}${opener}${cleanLabel}${closer}`
+      }
+    )
+
+    out.push(line)
   }
 
-  return c
+  return out.join('\n')
 }
 
 const CANONICAL_SECTIONS: [number, string[]][] = [

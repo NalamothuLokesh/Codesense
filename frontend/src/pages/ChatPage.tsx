@@ -18,6 +18,7 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import { MermaidDoc } from '../components/MermaidViewer'
+import { sanitizeMermaid } from './ReviewPage'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Source { heading: string; score: number }
@@ -60,20 +61,6 @@ function makeMsg(role: 'user' | 'assistant' | 'system', content: string, extra?:
   }
 }
 
-function sanitizeMermaid(code: string): string {
-  let c = code.trim()
-  c = c.replace(/^---+$/gm, '').replace(/^[~`]{3,}.*$/gm, '')
-  c = c.replace(/\|\|--\|\{/g, '||--o{')
-  c = c.replace(/\s+-->\s+/g, ' --> ')
-  c = c.replace(/\s+---\s+/g, ' --- ')
-  c = c.replace(/\s+==>\s+/g, ' ==> ')
-
-  c = c.replace(/\(\[([^"\]\)\n]*[,/&][^"\]\)\n]*)\]\)/g, '(["$1"])')
-  c = c.replace(/\[\(([^"\]\)\n]*[,/&][^"\]\)\n]*)\)\]/g, '[("$1")]')
-  c = c.replace(/\[([^"\]\n]*[,/&][^"\]\n]*)\]/g, '["$1"]')
-
-  return c
-}
 
 // ── Markdown renderer (for chat messages) ─────────────────────────────────────
 function renderMd(text: string): string {
