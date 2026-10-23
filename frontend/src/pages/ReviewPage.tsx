@@ -124,9 +124,80 @@ function sanitizeMermaid(code: string): string {
   return c
 }
 
+const CANONICAL_SECTIONS: [number, string[]][] = [
+  [1, ['executive summary', 'health verdict']],
+  [2, ['project objective', 'functional scope']],
+  [3, ['technology stack', 'tech stack', 'key integrations']],
+  [4, ['system architecture', 'component flow']],
+  [5, ['database schema', 'data models']],
+  [6, ['api documentation', 'route surface']],
+  [7, ['security & vulnerability', 'vulnerability assessment', 'security assessment']],
+  [8, ['code quality', 'bug analysis', 'bug findings']],
+  [9, ['limitations', 'project & analysis limitations']],
+  [10, ['future scope', 'architectural evolution']],
+  [11, ['improvement roadmap', 'prioritized improvement']],
+  [12, ['overall result', 'conclusion']],
+]
+
+export function deduplicateMarkdownSections(text: string): string {
+  if (!text) return text
+  const sectionPattern = /^(#{1,2})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$/gm
+  const matches = Array.from(text.matchAll(sectionPattern))
+  if (matches.length <= 1) return text
+
+  let firstSecIdx = -1
+  const mapped = matches.map((m, i) => {
+    const rawNum = m[2] ? parseInt(m[2], 10) : null
+    let secNum = rawNum && rawNum >= 1 && rawNum <= 12 ? rawNum : null
+    if (!secNum) {
+      const lower = m[3].toLowerCase()
+      if (!lower.includes('software analysis report') && !lower.includes('technical review')) {
+        for (const [num, kws] of CANONICAL_SECTIONS) {
+          if (kws.some(kw => lower.includes(kw))) {
+            secNum = num
+            break
+          }
+        }
+      }
+    }
+    if (secNum && firstSecIdx === -1) firstSecIdx = m.index!
+    return { m, i, secNum }
+  })
+
+  const header = firstSecIdx > 0 ? text.slice(0, firstSecIdx).trim() + '\n\n---\n\n' : ''
+  const seen = new Set<number>()
+  const kept: string[] = []
+
+  for (let idx = 0; idx < mapped.length; idx++) {
+    const { m, i, secNum } = mapped[idx]
+    if (!secNum || seen.has(secNum)) continue
+    seen.add(secNum)
+    const start = m.index!
+    const end = i + 1 < matches.length ? matches[i + 1].index! : text.length
+    kept.push(text.slice(start, end).trim())
+  }
+
+  if (kept.length === 0) return text
+  let assembled = (header + kept.join('\n\n---\n\n') + '\n').replace(/(\n\s*---\s*){2,}/g, '\n\n---\n\n')
+
+  // Deduplicate stray diagrams if repeated in multiple sections
+  const seenDiags = new Set<string>()
+  assembled = assembled.replace(
+    /(#{2,3}\s+(?:Architecture Flow Diagram|Use Case Diagram[^\n]*)\n[\s\S]*?)(?=(?:\n#{1,3}\s+|\n---\n|$))/gi,
+    (match, block) => {
+      const key = block.toLowerCase().includes('architecture flow') ? 'arch' : block.toLowerCase().includes('use case') ? 'usecase' : block.toLowerCase().trim()
+      if (seenDiags.has(key)) return ''
+      seenDiags.add(key)
+      return match
+    }
+  )
+
+  return assembled
+}
+
 export function parseMd(raw: string): string {
   const blocks: string[] = []
-  let text = raw
+  let text = deduplicateMarkdownSections(raw)
 
   // Protect mermaid blocks
   text = text.replace(/```mermaid\n?([\s\S]*?)```/g, (_: string, code: string) => {

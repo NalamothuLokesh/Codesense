@@ -35,27 +35,11 @@ TEXT_EXT = {
     ".cs",".cpp",".c",".h",".html",".css",".scss",".json",".toml",
     ".yaml",".yml",".md",".txt",".sh",".sql",".graphql",".xml",".cfg",
 }
-def is_local():
-    base = os.getenv("LLM_API_BASE", "")
-    return ("127.0.0.1" in base or "localhost" in base or
-            os.getenv("LLM_API_TYPE", "").lower() in ("ollama","llamacpp","lmstudio","none"))
-
-def get_limits():
-    if is_local():
-        return {
-            "max_file": 4_000,
-            "max_hi": 8_000,
-            "max_ctx": 32_000,
-            "max_files": 60,
-        }
-    return {
-        "max_file": 12_000,
-        "max_hi": 36_000,
-        "max_ctx": 90_000,
-        "max_files": 100,
-    }
-
-LLM_TIMEOUT = 420      # ~7 min timeout per call
+MAX_FILE    = 5_000      # ~1,250 tokens per file
+MAX_HI      = 10_000     # ~2,500 tokens for critical entry/model/route/manifest files
+MAX_CTX     = 40_000     # ~10,000 tokens per prompt (safest sweet spot for Gemini Flash)
+MAX_FILES   = 65         # Prioritized high-signal files
+LLM_TIMEOUT = 420        # ~7 min timeout per call
 
 
 # ── File Classification Helpers ───────────────────────────────────────────────
@@ -299,26 +283,19 @@ def collect_repo_files(repo_path: str):
 
     all_discovered.sort(key=file_priority)
 
-    limits = get_limits()
     collected = []
     total = 0
     for rel, full, ext, is_hi in all_discovered:
-        if total >= limits["max_files"]: break
+        if total >= MAX_FILES: break
         try:
             content = full.read_text(encoding="utf-8", errors="ignore")
         except:
             continue
         if not content.strip(): continue
         content = "\n".join(l.rstrip() for l in content.splitlines() if l.strip())
-        lim = limits["max_hi"] if is_hi else limits["max_file"]
+        lim = MAX_HI if is_hi else MAX_FILE
         if len(content) > lim:
-            if is_hi and lim >= 8_000:
-                half = lim // 2
-                top_part = content[:half]
-                bottom_part = content[-half:]
-                content = top_part + "\n\n// [NOTE: Middle lines omitted for prompt compactness - NOT a code defect]\n\n" + bottom_part
-            else:
-                content = content[:lim] + "\n\n// [NOTE: Remaining lines of this file omitted for review prompt compactness - NOT a code defect]"
+            content = content[:lim] + "\n\n// [NOTE: Remaining lines of this file omitted for review prompt compactness - NOT a code defect]"
         collected.append({"path": rel, "content": content})
         total += 1
 
@@ -817,7 +794,7 @@ def sanitize_mermaid_in_markdown(md: str) -> str:
         if node_id_map:
             for idx, line in enumerate(lines):
                 for old_id, new_id in node_id_map.items():
-                    line = re.sub(r'(^|\s+)' + re.escape(old_id) + r'(\s*-->|\s*---||\s*==>|\s*$)', r'\1' + new_id + r'\2', line)
+                    line = re.sub(r'(^|\s+)' + re.escape(old_id) + r'(\s*-->|\s*---|\s*==>|\s*$)', r'\1' + new_id + r'\2', line)
                 lines[idx] = line
 
         return "```mermaid\n" + "\n".join(lines) + "\n```"
@@ -843,13 +820,18 @@ def clean_section_content(sec_num: int, content: str) -> str:
     if not content:
         return ""
 
-    if sec_num == 3:
-        # Section 3 should NEVER contain Architecture Flow Diagrams, Use Case diagrams,
-        # or subsequent section headers that LLM may append in Call 1
-        content = re.sub(r'(?i)#{1,3}\s+Architecture Flow Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
-        content = re.sub(r'(?i)#{1,3}\s+Use Case Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
+    if sec_num in (1, 2, 3):
+        # Sections 1, 2, 3 should NEVER contain Architecture Flow Diagrams, Use Case diagrams,
+        # or Mermaid code blocks (those belong strictly to Section 4 in Call 2)
+        content = re.sub(r'(?i)#{1,3}\s+(?:System\s+)?Architecture\s+(?:Flow\s+)?Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
+        content = re.sub(r'(?i)#{1,3}\s+Use\s+Case\s+Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
         content = re.sub(r'(?i)\*\*Core System Components\*\*[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
         content = re.sub(r'```mermaid[\s\S]*?```', '', content)
+
+    if sec_num in (5, 6, 7, 8, 9, 10, 11, 12):
+        # Sections 5 through 12 should not repeat the Architecture Flow Diagram or Use Case Diagram
+        content = re.sub(r'(?i)#{1,3}\s+(?:System\s+)?Architecture\s+(?:Flow\s+)?Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
+        content = re.sub(r'(?i)#{1,3}\s+Use\s+Case\s+Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
 
     # Clean trailing separators
     content = re.sub(r'(\n\s*---\s*)+$', '', content).strip()
@@ -862,7 +844,7 @@ def extract_sections_from_call(text: str, allowed_nums: set[int]) -> dict[int, s
     Filters out extraneous sections or document title headers that LLM might hallucinate.
     """
     text = clean_doc_titles(text)
-    pattern = re.compile(r'^(#{1,3})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$', re.MULTILINE)
+    pattern = re.compile(r'^(#{1,2})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$', re.MULTILINE)
     matches = list(pattern.finditer(text))
 
     sections_found = []
@@ -945,7 +927,7 @@ def deduplicate_review_markdown(md: str) -> str:
             body = md[first_sec.start():]
 
     body = clean_doc_titles(body)
-    pattern = re.compile(r'^(#{1,3})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$', re.MULTILINE)
+    pattern = re.compile(r'^(#{1,2})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$', re.MULTILINE)
     matches = list(pattern.finditer(body))
 
     sections_found = []
@@ -1066,14 +1048,11 @@ async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
     serv_files  = [f for f in files if is_service(f["path"])]
     other_files = [f for f in files if f not in core_files and f not in model_files and f not in route_files and f not in auth_files]
 
-    limits = get_limits()
-    max_ctx = limits["max_ctx"]
-
     # Context packaging for 4 focused calls
-    code_call1 = pack(core_files + route_files[:6] + model_files[:4] + other_files[:6], max_ctx)
-    code_call2 = pack(core_files + route_files + model_files, max_ctx)
-    code_call3 = pack(auth_files + route_files[:6] + core_files + other_files[:4], max_ctx)
-    code_call4 = pack(core_files + auth_files[:4] + serv_files[:4] + other_files[:4], max_ctx)
+    code_call1 = pack(core_files + route_files[:6] + model_files[:4] + other_files[:6], MAX_CTX)
+    code_call2 = pack(core_files + route_files + model_files, MAX_CTX)
+    code_call3 = pack(auth_files + route_files[:6] + core_files + other_files[:4], MAX_CTX)
+    code_call4 = pack(core_files + auth_files[:4] + serv_files[:4] + other_files[:4], MAX_CTX)
 
     cx_call1 = make_context(repo_url, meta, ftree, code_call1, part_scope="Part 1 of 4: Sections 1–3")
     cx_call2 = make_context(repo_url, meta, ftree, code_call2, part_scope="Part 2 of 4: Sections 4–6")

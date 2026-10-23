@@ -631,7 +631,7 @@ export function MermaidDoc({
           const hasError =
             !el.querySelector('svg') ||
             (el.textContent && el.textContent.includes('Syntax error in text')) ||
-            Boolean(el.querySelector('.error-icon, .error-text, [id^="d"]'))
+            Boolean(el.querySelector('.error-icon, .error-text'))
           if (hasError) {
             const original = el.dataset.src || el.textContent || ''
             el.innerHTML = `<div class="mermaid-error" style="padding:16px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;margin:12px 0;">
