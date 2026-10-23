@@ -625,33 +625,40 @@ export function MermaidDoc({
 
     getMermaid().then(m => {
       if (!m) return
-      m.run({ nodes: Array.from(nodes) })
-        .then(() => {
-          if (ref.current) {
-            const wrapNodes = Array.from(
-              ref.current.querySelectorAll<HTMLElement>('.mermaid-wrap')
-            )
-            setWraps(wrapNodes)
+
+      const cleanupErrors = () => {
+        nodes.forEach(el => {
+          const hasError =
+            !el.querySelector('svg') ||
+            (el.textContent && el.textContent.includes('Syntax error in text')) ||
+            Boolean(el.querySelector('.error-icon, .error-text, [id^="d"]'))
+          if (hasError) {
+            const original = el.dataset.src || el.textContent || ''
+            el.innerHTML = `<div class="mermaid-error" style="padding:16px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;margin:12px 0;">
+              <div style="font-weight:700;margin-bottom:6px;color:#f87171">⚠️ Diagram Rendering Notice</div>
+              <div style="font-size:0.85rem;color:var(--muted-foreground)">The AI-generated diagram could not be rendered visually due to a syntax issue. You can inspect the source below:</div>
+              <details style="margin-top:8px;font-size:0.75rem">
+                <summary style="cursor:pointer;color:var(--primary);font-weight:600">Show diagram source code</summary>
+                <pre style="margin-top:6px;padding:8px;background:#0d1117;color:#e6edf3;border-radius:6px;overflow-x:auto">${original}</pre>
+              </details>
+            </div>`
           }
+        })
+        if (ref.current) {
+          const wrapNodes = Array.from(
+            ref.current.querySelectorAll<HTMLElement>('.mermaid-wrap')
+          )
+          setWraps(wrapNodes)
+        }
+      }
+
+      m.run({ nodes: Array.from(nodes), suppressErrors: true })
+        .then(() => {
+          cleanupErrors()
         })
         .catch(err => {
           console.error('Mermaid rendering error:', err)
-          nodes.forEach(el => {
-            if (!el.querySelector('svg')) {
-              const original = el.dataset.src || el.textContent || ''
-              el.innerHTML = `<div class="mermaid-error">
-                <div style="font-weight:700;margin-bottom:8px">⚠️ Diagram Rendering Notice</div>
-                <div style="font-size:0.85rem;color:var(--muted-foreground)">The AI-generated diagram has a syntax issue. You can inspect the source below:</div>
-                <details style="margin-top:8px;font-size:0.75rem">
-                  <summary style="cursor:pointer;color:var(--primary);font-weight:600">Show diagram code</summary>
-                  <pre style="margin-top:6px;padding:8px;background:#0d1117;color:#e6edf3;border-radius:6px;overflow-x:auto">${original}</pre>
-                </details>
-              </div>`
-            }
-          })
-          if (ref.current) {
-            setWraps(Array.from(ref.current.querySelectorAll<HTMLElement>('.mermaid-wrap')))
-          }
+          cleanupErrors()
         })
     })
   }, [html, id])

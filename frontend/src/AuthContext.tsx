@@ -60,6 +60,51 @@ const Ctx = createContext<AuthCtx | null>(null)
 // Non-persistent tab-session cache for token (cleared when browser/tab closes)
 const SESSION_TOKEN_KEY = 'codesense_session_token'
 
+/**
+ * Resilient fetch helper that handles non-JSON responses (e.g. Vercel/Render 502/504 gateway timeout
+ * or backend cold start delays) and returns parsed JSON or a human-readable, friendly error.
+ */
+async function safeApiCall(url: string, init?: RequestInit, retries = 2): Promise<any> {
+  let lastError: any = null
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, init)
+      const text = await res.text()
+      let data: any = null
+      try {
+        data = text ? JSON.parse(text) : {}
+      } catch {
+        // Non-JSON response received (HTML error page, Vercel/Render Gateway Timeout, etc.)
+        if (res.status === 502 || res.status === 503 || res.status === 504 || /error occurred/i.test(text)) {
+          if (attempt < retries) {
+            await new Promise(r => setTimeout(r, 2000))
+            continue
+          }
+          throw new Error('The backend server is waking up from sleep. Please wait a few seconds and try again.')
+        }
+        throw new Error(`Server returned status ${res.status}. Please check your connection and try again.`)
+      }
+
+      // If server returned a 502/503/504 JSON error while spinning up, retry
+      if ((res.status === 502 || res.status === 503 || res.status === 504) && attempt < retries) {
+        await new Promise(r => setTimeout(r, 2000))
+        continue
+      }
+
+      return data
+    } catch (err: any) {
+      lastError = err
+      const msg = err?.message || ''
+      if ((msg.includes('waking up') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) && attempt < retries) {
+        await new Promise(r => setTimeout(r, 2000))
+        continue
+      }
+      throw err
+    }
+  }
+  throw lastError || new Error('Request timed out. Please try again.')
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user,    setUser]    = useState<User | null>(null)
   const [token,   setToken]   = useState<string | null>(() => sessionStorage.getItem(SESSION_TOKEN_KEY))
@@ -73,9 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check DB health once on mount
   useEffect(() => {
-    fetch('/api/health')
-      .then(r => r.json())
-      .then(d => setDbReady(d.db === 'connected'))
+    safeApiCall('/api/health', undefined, 1)
+      .then(d => setDbReady(d?.db === 'connected' || d?.status === 'ok'))
       .catch(() => setDbReady(false))
   }, [])
 
@@ -85,11 +129,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const headers: Record<string, string> = {}
       if (cachedTok) headers['Authorization'] = `Bearer ${cachedTok}`
 
-      const r = await fetch('/api/auth/me', {
+      const d = await safeApiCall('/api/auth/me', {
         credentials: 'include', // Sends HttpOnly session cookie
         headers,
-      })
-      const d = await r.json()
+      }, 1)
+
       if (d.ok && d.user) {
         setUser(d.user)
         if (d.token) {
@@ -122,13 +166,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const login = async (email: string, password: string) => {
-    const r = await fetch('/api/auth/login', {
+    const d = await safeApiCall('/api/auth/login', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
     })
-    const d = await r.json()
     if (!d.ok) {
       const err: AuthErrorWithDetails = new Error(d.error || 'Sign in failed')
       if (d.unverified) {
@@ -141,13 +184,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const register = async (email: string, password: string, name: string): Promise<RegisterResult> => {
-    const r = await fetch('/api/auth/register', {
+    const d = await safeApiCall('/api/auth/register', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim().toLowerCase(), password, name: name.trim() }),
     })
-    const d = await r.json()
     if (!d.ok) {
       throw new Error(d.error || 'Registration failed')
     }
@@ -159,13 +201,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const verifyEmail = async (email: string, code: string) => {
-    const r = await fetch('/api/auth/verify-email', {
+    const d = await safeApiCall('/api/auth/verify-email', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim() }),
     })
-    const d = await r.json()
     if (!d.ok) {
       const err: AuthErrorWithDetails = new Error(d.error || 'Verification failed')
       err.expired = d.expired
@@ -176,13 +217,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const resendCode = async (email: string): Promise<ResendResult> => {
-    const r = await fetch('/api/auth/resend-code', {
+    const d = await safeApiCall('/api/auth/resend-code', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim().toLowerCase() }),
     })
-    const d = await r.json()
     if (!d.ok) {
       throw new Error(d.error || 'Could not resend code')
     }
@@ -218,13 +258,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (cachedTok) headers['Authorization'] = `Bearer ${cachedTok}`
 
-    const r = await fetch('/api/user/profile', {
+    const d = await safeApiCall('/api/user/profile', {
       method: 'PUT',
       credentials: 'include',
       headers,
       body: JSON.stringify(data),
     })
-    const d = await r.json()
     if (!d.ok) {
       throw new Error(d.error || 'Failed to update profile')
     }
@@ -236,13 +275,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (cachedTok) headers['Authorization'] = `Bearer ${cachedTok}`
 
-    const r = await fetch('/api/user/preferences', {
+    const d = await safeApiCall('/api/user/preferences', {
       method: 'PUT',
       credentials: 'include',
       headers,
       body: JSON.stringify({ notificationPreferences }),
     })
-    const d = await r.json()
     if (!d.ok) {
       throw new Error(d.error || 'Failed to update notification preferences')
     }
@@ -254,13 +292,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (cachedTok) headers['Authorization'] = `Bearer ${cachedTok}`
 
-    const r = await fetch('/api/user/account', {
+    const d = await safeApiCall('/api/user/account', {
       method: 'DELETE',
       credentials: 'include',
       headers,
       body: JSON.stringify({ confirmation }),
     })
-    const d = await r.json()
     if (!d.ok) {
       throw new Error(d.error || 'Failed to delete account')
     }

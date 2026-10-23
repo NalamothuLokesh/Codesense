@@ -19,6 +19,7 @@ EXCLUDE = {
     "*.log","*.png","*.jpg","*.jpeg","*.gif","*.ico","*.svg","*.woff*",
     "*.ttf","*.eot","*.zip","*.tar*","*.gz","poetry.lock",
     "package-lock.json","yarn.lock","pnpm-lock.yaml",
+    "reviews_cache/*","chroma_db/*","storage/*","*.sqlite","*.sqlite3","*.db",
 }
 HIGH = {
     "readme.md","package.json","pyproject.toml","cargo.toml","go.mod",
@@ -62,7 +63,11 @@ def excl(rel: str) -> bool:
     p = rel.replace("\\", "/").lower()
     for pat in EXCLUDE:
         if fnmatch.fnmatch(p, pat.lower()): return True
-    skip = {"node_modules","__pycache__",".venv","venv","dist","build",".git",".next",".turbo",".cache"}
+    skip = {
+        "node_modules","__pycache__",".venv","venv","dist","build",".git",
+        ".next",".turbo",".cache","reviews_cache","chroma_db","storage",
+        ".agents",".gemini",".vscode","coverage",".nyc_output"
+    }
     return any(part in skip for part in p.split("/")[:-1])
 
 def is_model(p: str) -> bool:
@@ -264,7 +269,12 @@ def collect_repo_files(repo_path: str):
 
     for root, dirs, files in os.walk(base):
         dirs[:] = sorted([d for d in dirs if not d.startswith(".") and
-                          d not in {"node_modules","__pycache__",".venv","venv","dist","build",".git",".next",".turbo",".cache"}])
+                          d not in {
+                              "node_modules","__pycache__",".venv","venv","dist",
+                              "build",".git",".next",".turbo",".cache",
+                              "reviews_cache","chroma_db","storage","coverage",
+                              ".agents",".gemini",".vscode"
+                          }])
         for fname in sorted(files):
             full = Path(root) / fname
             rel  = str(full.relative_to(base)).replace("\\", "/")
@@ -371,7 +381,7 @@ def pack(files, budget):
     return out
 
 
-def make_context(repo_url: str, meta: dict, ftree: str, code: str, findings_summary: str = "") -> str:
+def make_context(repo_url: str, meta: dict, ftree: str, code: str, findings_summary: str = "", part_scope: str = "") -> str:
     dep_sample = ", ".join(meta["dependencies"][:12]) if meta["dependencies"] else "None explicitly listed"
     fw_sample  = ", ".join(meta["frameworks"]) if meta["frameworks"] else "Standard runtime"
     db_sample  = ", ".join(meta["databases"]) if meta["databases"] else "None detected"
@@ -393,6 +403,8 @@ def make_context(repo_url: str, meta: dict, ftree: str, code: str, findings_summ
     if findings_summary:
         findings_block = f"\nPRIOR ANALYSIS FINDINGS SUMMARY (Sections 7-8):\n{findings_summary}\n"
 
+    scope_block = f"\nTARGET CALL SCOPE: {part_scope}\n" if part_scope else ""
+
     return f"""You are a Principal Software Architect writing a formal, project-specific technical review.
 TARGET PROJECT: {meta['name']}
 REPOSITORY URL: {repo_url}
@@ -402,7 +414,7 @@ DATABASES / DATA LAYER: {db_sample}
 AUTHENTICATION MECHANISMS: {auth_sample}
 KEY DEPENDENCIES: {dep_sample}
 TEST SUITE STATUS: {test_info}
-{signals_block}{findings_block}
+{signals_block}{findings_block}{scope_block}
 STRICT GUIDELINES:
 1. Refer to '{meta['name']}' by name throughout the report (never just 'the application' or 'the project').
 2. Every statement, table row, and recommendation must be 100% grounded in the real code, files, classes, and findings provided below.
@@ -410,6 +422,7 @@ STRICT GUIDELINES:
 4. If information is absent (e.g. no automated tests), explicitly state that limitation rather than inventing metrics.
 5. In markdown tables, NEVER use unescaped pipe characters '|' or '||' (use 'OR' or escape as '\\|') to prevent table column breakage.
 6. Note: Any comments containing '[NOTE: Remaining lines... omitted]' are review prompt truncation markers, NOT code defects.
+7. CRITICAL MODULAR SCOPE: Output ONLY the specific numbered sections requested for this call. Do NOT output a document title header (e.g. '# Software Analysis Report' or '# Technical Review'), table of contents, introduction, or sections belonging to other parts. Begin immediately with the first requested section header.
 
 FILE TREE:
 {ftree}
@@ -423,7 +436,12 @@ SOURCE CODE:
 # ══════════════════════════════════════════════════════════════
 # CALL 1 — Executive Summary, Project Objective & Tech Stack (Sections 1–3)
 # ══════════════════════════════════════════════════════════════
-P1 = """Analyze this repository and output Sections 1, 2, and 3 of the technical review report.
+P1 = """Analyze this repository and output ONLY Sections 1, 2, and 3 of the technical review report.
+CRITICAL INSTRUCTIONS FOR CALL 1:
+- Do NOT include any document title header (no '# Technical Review' or '# Architectural Review'). Begin directly with '# 1. Executive Summary & Health Verdict'.
+- Do NOT output Sections 4 through 12.
+- STRICT PROHIBITION: Do NOT generate any Architecture Flow Diagram, Use Case Diagram, Actor Matrix, or Core System Components table in this call. Those belong strictly to Section 4 in Call 2.
+- For 'Integration Highlights' in Section 3, output ONLY 2-3 sentences of prose text. Do NOT emit any Mermaid code blocks (```mermaid) or subheadings.
 
 # 1. Executive Summary & Health Verdict
 
@@ -463,7 +481,7 @@ Identify the real technologies and libraries actually used in this codebase:
 (List 6 to 12 actual dependencies and tools found in package.json, pyproject.toml, pom.xml, or source imports)
 
 **Integration Highlights**:
-Explain in 2-3 sentences how the client, server, database, and background services communicate and integrate in this specific project.
+Explain in 2-3 sentences how the client, server, database, and background services communicate and integrate in this specific project. (Prose text only - no diagrams or subheadings).
 
 ---
 """
@@ -471,7 +489,13 @@ Explain in 2-3 sentences how the client, server, database, and background servic
 # ══════════════════════════════════════════════════════════════
 # CALL 2 — Architecture, Database Models & API Surface (Sections 4–6)
 # ══════════════════════════════════════════════════════════════
-P2 = """Analyze the architecture, database models, and route definitions in the codebase and output Sections 4, 5, and 6.
+P2 = """Analyze the architecture, database models, and route definitions in the codebase and output ONLY Sections 4, 5, and 6.
+CRITICAL INSTRUCTIONS FOR CALL 2:
+- Do NOT include any document title header (no '# Technical Review' or '# Formal Technical Review').
+- Do NOT repeat Sections 1, 2, or 3.
+- Do NOT output Sections 7 through 12.
+- Section 4 is the ONLY place where the Architecture Flow Diagram and Use Case Diagram belong.
+- Begin directly with '# 4. System Architecture & Component Flow'.
 
 # 4. System Architecture & Component Flow
 
@@ -556,7 +580,8 @@ curl -X POST http://localhost:PORT/api/sample-route \\
 # ══════════════════════════════════════════════════════════════
 # CALL 3 — Security Audit & Bug Analysis (Sections 7–8)
 # ══════════════════════════════════════════════════════════════
-P3 = """Analyze the security vulnerabilities, bugs, code quality, and technical debt for this repository. Output Sections 7 and 8.
+P3 = """Analyze the security vulnerabilities, bugs, code quality, and technical debt for this repository. Output ONLY Sections 7 and 8.
+CRITICAL INSTRUCTION: Do NOT include any document title header (no '# Technical Review' or '# Formal Technical Review'). Do NOT output Sections 1 through 6 or Sections 9 through 12. Begin directly with '# 7. Security & Vulnerability Assessment'.
 
 # 7. Security & Vulnerability Assessment
 
@@ -592,7 +617,8 @@ Provide 2-3 sentences evaluating modularity, adherence to language conventions, 
 # ══════════════════════════════════════════════════════════════
 # CALL 4 — Limitations, Future Scope, Roadmap & Conclusion (Sections 9–12)
 # ══════════════════════════════════════════════════════════════
-P4 = """Analyze the project boundaries, realistic future enhancements, improvement roadmap, and provide the overall conclusion. Output Sections 9, 10, 11, and 12.
+P4 = """Analyze the project boundaries, realistic future enhancements, improvement roadmap, and provide the overall conclusion. Output ONLY Sections 9, 10, 11, and 12.
+CRITICAL INSTRUCTION: Do NOT include any document title header (no '# Technical Review' or '# Formal Technical Review'). Do NOT output Sections 1 through 8. Begin directly with '# 9. Project & Analysis Limitations'.
 
 STRICT INSTRUCTIONS:
 - Base all sections directly on the actual project architecture, detected dependencies, and earlier analysis findings.
@@ -699,6 +725,309 @@ async def timed_call(prompt, label, retries=4):
             return f"## ⚠️ {label} — Error: {e}\n"
 
 
+# ── Canonical Section Specifications & Deduplication ──────────────────────────
+SECTION_SPECS = [
+    (1, "Executive Summary & Health Verdict", ["executive summary", "health verdict"]),
+    (2, "Project Objective & Functional Scope", ["project objective", "functional scope"]),
+    (3, "Technology Stack & Key Integrations", ["technology stack", "tech stack", "key integrations"]),
+    (4, "System Architecture & Component Flow", ["system architecture", "component flow"]),
+    (5, "Database Schema & Data Models", ["database schema", "data models"]),
+    (6, "API Documentation & Route Surface", ["api documentation", "route surface"]),
+    (7, "Security & Vulnerability Assessment", ["security & vulnerability", "security and vulnerability", "vulnerability assessment", "security assessment"]),
+    (8, "Code Quality & Bug Analysis", ["code quality", "bug analysis", "bug findings"]),
+    (9, "Project & Analysis Limitations", ["limitations", "project & analysis limitations"]),
+    (10, "Future Scope & Architectural Evolution", ["future scope", "architectural evolution"]),
+    (11, "Prioritized Improvement Roadmap", ["improvement roadmap", "prioritized improvement"]),
+    (12, "Overall Result & Conclusion", ["overall result", "conclusion"]),
+]
+
+
+def sanitize_mermaid_in_markdown(md: str) -> str:
+    """
+    Finds and sanitizes all ```mermaid blocks in the markdown report:
+    - Wraps node labels in proper double-quotes
+    - Sanitizes node IDs with dots/spaces/slashes so Mermaid doesn't crash
+    - Double quotes subgraph names
+    - Normalizes arrows and line connections
+    """
+    if not md or "```mermaid" not in md:
+        return md
+
+    def sanitize_block(match: re.Match) -> str:
+        code = match.group(1).strip()
+        lines = []
+        node_id_map = {}
+
+        for raw_line in code.splitlines():
+            line = raw_line.rstrip()
+            stripped = line.strip()
+            if not stripped or stripped.startswith('%%'):
+                lines.append(line)
+                continue
+
+            # Subgraph name quoting: subgraph System Boundary -> subgraph "System Boundary"
+            m_sub = re.match(r'^(\s*subgraph\s+)([\"\']?[^\"\'\n]+[\"\']?)(\s*)$', line, re.IGNORECASE)
+            if m_sub:
+                name = m_sub.group(2).strip()
+                if not (name.startswith('"') and name.endswith('"')):
+                    name = f'"{name.strip("\'")}"'
+                lines.append(f'{m_sub.group(1)}{name}{m_sub.group(3)}')
+                continue
+
+            # Normalise common arrow markers
+            line = re.sub(r'\|\|--\|\{', '||--o{', line)
+            line = re.sub(r'\s+-->\s+', ' --> ', line)
+            line = re.sub(r'\s+---\s+', ' --- ', line)
+            line = re.sub(r'\s+==>\s+', ' ==> ', line)
+
+            def quote_shape(m):
+                prefix = m.group(1)
+                raw_id = m.group(2).strip()
+                opener = m.group(3)
+                label = m.group(4).strip()
+                closer = m.group(5)
+
+                # Clean node ID: replace dots, spaces, slashes with underscores
+                clean_id = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_id)
+                if not clean_id or clean_id[0].isdigit():
+                    clean_id = 'N_' + clean_id
+
+                if raw_id != clean_id:
+                    node_id_map[raw_id] = clean_id
+
+                # Ensure proper quote wrapping for label
+                if label.startswith('"') and label.endswith('"') and len(label) >= 2:
+                    clean_label = label
+                else:
+                    inner = label.strip('"\'').replace('"', "'")
+                    clean_label = f'"{inner}"'
+
+                return f'{prefix}{clean_id}{opener}{clean_label}{closer}'
+
+            # Match shape definitions: ID["label"], ID[label], ID(["label"]), ID[("label")]
+            line = re.sub(
+                r'(^|\s+|-->\s*|---\s*|==>\s*|\|\s*)([a-zA-Z0-9_.\s-]+?)(\(\[|\[\(|\[|\(|\{\{)(.+?)(\]\)|\)\]|\]|\)|\}\})(?=\s*(-->|---|==>|\||$))',
+                quote_shape,
+                line
+            )
+
+            lines.append(line)
+
+        # Replace bare node ID references if ID was cleaned
+        if node_id_map:
+            for idx, line in enumerate(lines):
+                for old_id, new_id in node_id_map.items():
+                    line = re.sub(r'(^|\s+)' + re.escape(old_id) + r'(\s*-->|\s*---||\s*==>|\s*$)', r'\1' + new_id + r'\2', line)
+                lines[idx] = line
+
+        return "```mermaid\n" + "\n".join(lines) + "\n```"
+
+    return re.sub(r'```mermaid\n?([\s\S]*?)```', sanitize_block, md)
+
+
+def clean_doc_titles(text: str) -> str:
+    """Strips redundant top-level document titles that LLMs may generate between calls."""
+    text = re.sub(
+        r'(?m)^#{1,2}\s+(?:Formal\s+)?(?:Architectural\s+&\s+)?Technical\s+Review[^\n]*\n(?:\|[^\n]*\|\n|---|\s*)*',
+        '',
+        text
+    )
+    return text
+
+
+def clean_section_content(sec_num: int, content: str) -> str:
+    """
+    Strips misplaced diagrams, subheadings, or bleeding content from sections
+    where they strictly do not belong.
+    """
+    if not content:
+        return ""
+
+    if sec_num == 3:
+        # Section 3 should NEVER contain Architecture Flow Diagrams, Use Case diagrams,
+        # or subsequent section headers that LLM may append in Call 1
+        content = re.sub(r'(?i)#{1,3}\s+Architecture Flow Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
+        content = re.sub(r'(?i)#{1,3}\s+Use Case Diagram[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
+        content = re.sub(r'(?i)\*\*Core System Components\*\*[\s\S]*?(?=(?:#{1,3}\s+[A-Za-z0-9]|$))', '', content)
+        content = re.sub(r'```mermaid[\s\S]*?```', '', content)
+
+    # Clean trailing separators
+    content = re.sub(r'(\n\s*---\s*)+$', '', content).strip()
+    return content
+
+
+def extract_sections_from_call(text: str, allowed_nums: set[int]) -> dict[int, str]:
+    """
+    Extracts sections designated for this specific call.
+    Filters out extraneous sections or document title headers that LLM might hallucinate.
+    """
+    text = clean_doc_titles(text)
+    pattern = re.compile(r'^(#{1,3})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$', re.MULTILINE)
+    matches = list(pattern.finditer(text))
+
+    sections_found = []
+    for m in matches:
+        raw_num = int(m.group(2)) if m.group(2) else None
+        title = m.group(3).strip()
+        title_lower = title.lower()
+
+        if any(dt in title_lower for dt in ["technical review", "software analysis report", "formal technical review"]):
+            continue
+
+        matched_num = None
+        for sec_num, canon_name, kws in SECTION_SPECS:
+            if any(kw in title_lower for kw in kws):
+                matched_num = sec_num
+                break
+        if matched_num is None and raw_num and 1 <= raw_num <= 12:
+            matched_num = raw_num
+
+        if matched_num:
+            sections_found.append({
+                "sec_num": matched_num,
+                "start": m.start(),
+                "title": title
+            })
+
+    sections_found.sort(key=lambda s: s["start"])
+    extracted = {}
+    for i, sec in enumerate(sections_found):
+        num = sec["sec_num"]
+        if num not in allowed_nums:
+            continue
+        start_pos = sec["start"]
+        end_pos = sections_found[i+1]["start"] if i + 1 < len(sections_found) else len(text)
+        content = text[start_pos:end_pos].strip()
+        content = clean_doc_titles(content)
+        content = re.sub(r'(\n\s*---\s*)+$', '', content).strip()
+
+        canon_title = next(spec[1] for spec in SECTION_SPECS if spec[0] == num)
+        first_nl = content.find('\n')
+        sec_body = content[first_nl:] if first_nl != -1 else ""
+        cleaned_body = clean_section_content(num, sec_body)
+        standardized = f"# {num}. {canon_title}" + ("\n" + cleaned_body if cleaned_body else "")
+
+        if num in extracted:
+            if len(standardized) > len(extracted[num]):
+                extracted[num] = standardized
+        else:
+            extracted[num] = standardized
+
+    # Fallback if unparsed (e.g. timeout banner or error message)
+    if not extracted and text.strip():
+        first_num = sorted(allowed_nums)[0]
+        canon_title = next(spec[1] for spec in SECTION_SPECS if spec[0] == first_num)
+        extracted[first_num] = f"# {first_num}. {canon_title}\n\n{text.strip()}"
+
+    return extracted
+
+
+def deduplicate_review_markdown(md: str) -> str:
+    """
+    Post-processes and cleans review markdown, ensuring:
+    1. Each of the 12 canonical sections appears exactly once in sequential order.
+    2. Stray repeated Architecture Flow and Use Case diagrams are deduplicated.
+    3. Mermaid diagrams are strictly syntax-sanitized.
+    """
+    if not md:
+        return md
+
+    header = ""
+    body = md
+    header_match = re.search(r'(# Software Analysis Report[\s\S]*?>[^\n]+\n\n---\n\n)', md)
+    if header_match:
+        header = header_match.group(1)
+        body = md[header_match.end():]
+    elif md.startswith("# Software Analysis Report"):
+        first_sec = re.search(r'\n(?=#{1,3}\s+(?:\d+[\.\:\s]+)?[A-Z])', md)
+        if first_sec:
+            header = md[:first_sec.start()].strip() + "\n\n---\n\n"
+            body = md[first_sec.start():]
+
+    body = clean_doc_titles(body)
+    pattern = re.compile(r'^(#{1,3})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$', re.MULTILINE)
+    matches = list(pattern.finditer(body))
+
+    sections_found = []
+    for m in matches:
+        raw_num = int(m.group(2)) if m.group(2) else None
+        title = m.group(3).strip()
+        title_lower = title.lower()
+
+        if any(dt in title_lower for dt in ["technical review", "software analysis report", "formal technical review"]):
+            continue
+
+        matched_num = None
+        for sec_num, canon_name, kws in SECTION_SPECS:
+            if any(kw in title_lower for kw in kws):
+                matched_num = sec_num
+                break
+        if matched_num is None and raw_num and 1 <= raw_num <= 12:
+            matched_num = raw_num
+
+        if matched_num:
+            sections_found.append({
+                "sec_num": matched_num,
+                "start": m.start(),
+                "title": title
+            })
+
+    sections_found.sort(key=lambda s: s["start"])
+    sections = {}
+    for i, sec in enumerate(sections_found):
+        num = sec["sec_num"]
+        start_pos = sec["start"]
+        end_pos = sections_found[i+1]["start"] if i + 1 < len(sections_found) else len(body)
+        content = body[start_pos:end_pos].strip()
+        content = clean_doc_titles(content)
+        content = re.sub(r'(\n\s*---\s*)+$', '', content).strip()
+
+        canon_title = next(spec[1] for spec in SECTION_SPECS if spec[0] == num)
+        first_nl = content.find('\n')
+        sec_body = content[first_nl:] if first_nl != -1 else ""
+        cleaned_body = clean_section_content(num, sec_body)
+        standardized = f"# {num}. {canon_title}" + ("\n" + cleaned_body if cleaned_body else "")
+
+        if num in sections:
+            if len(standardized) > len(sections[num]):
+                sections[num] = standardized
+        else:
+            sections[num] = standardized
+
+    ordered_sections = []
+    for num in range(1, 13):
+        if num in sections:
+            ordered_sections.append(sections[num].strip())
+
+    if not ordered_sections:
+        assembled = md
+    else:
+        assembled = (header + "\n\n---\n\n".join(ordered_sections) + "\n").strip() + "\n"
+
+    # Global diagram deduplication:
+    # Ensure '### Architecture Flow Diagram' and '### Use Case Diagram' appear at most once across the entire document
+    seen_diagrams = set()
+    def dedup_diagram(match: re.Match) -> str:
+        diag_title = match.group(1).strip().lower()
+        key = "arch" if "architecture flow" in diag_title else "usecase" if "use case" in diag_title else diag_title
+        if key in seen_diagrams:
+            return ""  # Remove duplicate diagram block
+        seen_diagrams.add(key)
+        return match.group(0)
+
+    assembled = re.sub(
+        r'(?i)(#{2,3}\s+(?:Architecture Flow Diagram|Use Case Diagram[^\n]*)\n[\s\S]*?)(?=(?:\n#{1,3}\s+|\n---\n|$))',
+        dedup_diagram,
+        assembled
+    )
+
+    # Clean double separators
+    assembled = re.sub(r'(\n\s*---\s*){2,}', '\n\n---\n\n', assembled)
+
+    # Sanitize all Mermaid blocks
+    return sanitize_mermaid_in_markdown(assembled)
+
+
 # ── Main Generator ────────────────────────────────────────────────────────────
 async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
     mc.configure(
@@ -746,45 +1075,51 @@ async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
     code_call3 = pack(auth_files + route_files[:6] + core_files + other_files[:4], max_ctx)
     code_call4 = pack(core_files + auth_files[:4] + serv_files[:4] + other_files[:4], max_ctx)
 
-    cx_call1 = make_context(repo_url, meta, ftree, code_call1)
-    cx_call2 = make_context(repo_url, meta, ftree, code_call2)
-    cx_call3 = make_context(repo_url, meta, ftree, code_call3)
+    cx_call1 = make_context(repo_url, meta, ftree, code_call1, part_scope="Part 1 of 4: Sections 1–3")
+    cx_call2 = make_context(repo_url, meta, ftree, code_call2, part_scope="Part 2 of 4: Sections 4–6")
+    cx_call3 = make_context(repo_url, meta, ftree, code_call3, part_scope="Part 3 of 4: Sections 7–8")
 
     p_name = meta["name"]
     n = len(files)
     print(f"[gen] {p_name}: {n} files analysed ({total_disc} total). Running 4 focused calls.", flush=True)
 
-    parts = []
-
     # ── Call 1 ──
     write_progress(pfile, 1, 4, f"Sections 1–3: Executive Summary, Objective & Tech Stack for {p_name}…")
     print(f"[gen] Call 1/4: Sections 1–3 for {p_name}…", flush=True)
     res1 = await timed_call(cx_call1 + P1, "Sections 1–3")
-    parts.append(res1)
+    sec_call1 = extract_sections_from_call(res1, {1, 2, 3})
     await asyncio.sleep(2)
 
     # ── Call 2 ──
     write_progress(pfile, 2, 4, f"Sections 4–6: Architecture, Database Models & API Surface for {p_name}…")
     print(f"[gen] Call 2/4: Sections 4–6 for {p_name}…", flush=True)
     res2 = await timed_call(cx_call2 + P2, "Sections 4–6")
-    parts.append(res2)
+    sec_call2 = extract_sections_from_call(res2, {4, 5, 6})
     await asyncio.sleep(2)
 
     # ── Call 3 ──
     write_progress(pfile, 3, 4, f"Sections 7–8: Security Assessment & Bug Analysis for {p_name}…")
     print(f"[gen] Call 3/4: Sections 7–8 for {p_name}…", flush=True)
     res3 = await timed_call(cx_call3 + P3, "Sections 7–8")
-    parts.append(res3)
+    sec_call3 = extract_sections_from_call(res3, {7, 8})
     await asyncio.sleep(2)
 
-    # ── Call 4 (Incorporate Call 3 findings for internal consistency) ──
-    call3_snippet = res3[:2500] if len(res3) > 2500 else res3
-    cx_call4 = make_context(repo_url, meta, ftree, code_call4, findings_summary=call3_snippet)
+    # ── Call 4 (Incorporate verified Call 3 findings for internal consistency) ──
+    findings_parts = []
+    if 7 in sec_call3:
+        findings_parts.append(sec_call3[7])
+    if 8 in sec_call3:
+        findings_parts.append(sec_call3[8])
+    if not findings_parts:
+        findings_parts.append(res3)
+    call3_snippet = "\n\n".join(findings_parts)[:2500]
+
+    cx_call4 = make_context(repo_url, meta, ftree, code_call4, findings_summary=call3_snippet, part_scope="Part 4 of 4: Sections 9–12")
 
     write_progress(pfile, 4, 4, f"Sections 9–12: Limitations, Future Scope, Roadmap & Conclusion for {p_name}…")
     print(f"[gen] Call 4/4: Sections 9–12 for {p_name}…", flush=True)
     res4 = await timed_call(cx_call4 + P4, "Sections 9–12")
-    parts.append(res4)
+    sec_call4 = extract_sections_from_call(res4, {9, 10, 11, 12})
 
     header = f"""# Software Analysis Report
 
@@ -801,15 +1136,21 @@ async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
 ---
 
 """
-    # Clean section joining
-    cleaned_parts = []
-    for p in parts:
-        pt = p.strip()
-        if pt.endswith("---"):
-            pt = pt[:-3].rstrip()
-        cleaned_parts.append(pt)
 
-    return header + "\n\n---\n\n".join(cleaned_parts) + "\n"
+    # Assemble all sections with absolute deduplication: each section 1..12 appears exactly once
+    final_dict = {}
+    final_dict.update(sec_call1)
+    final_dict.update(sec_call2)
+    final_dict.update(sec_call3)
+    final_dict.update(sec_call4)
+
+    ordered_sections = []
+    for num in range(1, 13):
+        if num in final_dict:
+            ordered_sections.append(final_dict[num].strip())
+
+    assembled_doc = header + "\n\n---\n\n".join(ordered_sections) + "\n"
+    return deduplicate_review_markdown(assembled_doc)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

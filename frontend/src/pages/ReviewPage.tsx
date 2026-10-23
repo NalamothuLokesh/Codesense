@@ -81,9 +81,45 @@ function sanitizeMermaid(code: string): string {
   c = c.replace(/\s+---\s+/g, ' --- ')
   c = c.replace(/\s+==>\s+/g, ' ==> ')
 
-  c = c.replace(/\(\[([^"\]\)\n]*[,/&][^"\]\)\n]*)\]\)/g, '(["$1"])')
-  c = c.replace(/\[\(([^"\]\)\n]*[,/&][^"\]\)\n]*)\)\]/g, '[("$1")]')
-  c = c.replace(/\[([^"\]\n]*[,/&][^"\]\n]*)\]/g, '["$1"]')
+  // Subgraph title quoting
+  c = c.replace(/^(\s*subgraph\s+)([^"'\n]+?)(\s*)$/gim, (_, prefix, name, suffix) => {
+    const trimmed = name.trim()
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) return `${prefix}${trimmed}${suffix}`
+    return `${prefix}"${trimmed.replace(/"/g, '')}"${suffix}`
+  })
+
+  // Collect node ID replacements if node IDs contain dots or spaces
+  const nodeIdMap: Record<string, string> = {}
+
+  // Quoting node labels inside shapes: ([...]), [(...)], [...], (...), {{...}}
+  c = c.replace(
+    /(^|\s+|-->\s*|---\s*|==>\s*|\|\s*)([a-zA-Z0-9_.\s-]+?)(\(\[|\[\(|\[|\(|\{\{)(.+?)(\]\)|\)\]|\]|\)|\}\})(?=\s*(-->|---|==>|\||$))/gm,
+    (_, prefix, rawId, opener, label, closer) => {
+      const nodeId = rawId.trim()
+      let cleanId = nodeId.replace(/[^a-zA-Z0-9_-]/g, '_')
+      if (!cleanId || /^[0-9]/.test(cleanId)) cleanId = 'N_' + cleanId
+
+      if (nodeId !== cleanId) {
+        nodeIdMap[nodeId] = cleanId
+      }
+
+      const trimmedLabel = label.trim()
+      let cleanLabel: string
+      if (trimmedLabel.startsWith('"') && trimmedLabel.endsWith('"') && trimmedLabel.length >= 2) {
+        cleanLabel = trimmedLabel
+      } else {
+        cleanLabel = `"${trimmedLabel.replace(/^["']+|["']+$/g, '').replace(/"/g, "'")}"`
+      }
+
+      return `${prefix}${cleanId}${opener}${cleanLabel}${closer}`
+    }
+  )
+
+  // Replace bare node ID references if ID was modified
+  for (const [oldId, newId] of Object.entries(nodeIdMap)) {
+    const escaped = oldId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    c = c.replace(new RegExp(`(^|\\s+)${escaped}(\\s*-->|\\s*---|\\s*==>|\\s*\\||\\s*$)`, 'gm'), `$1${newId}$2`)
+  }
 
   return c
 }

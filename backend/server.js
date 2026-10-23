@@ -62,18 +62,80 @@ function resolveJwtSecret() {
 const JWT_SECRET       = resolveJwtSecret();
 const ADMIN_EMAIL      = (process.env.ADMIN_EMAIL || 'admin@codesense.dev').toLowerCase();
 
-// ── Google OAuth 2.0 Configuration ───────────────────────────────────────────
+// ── Frontend & Google OAuth 2.0 Configuration ─────────────────────────────────
 const GOOGLE_CLIENT_ID     = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
-function getGoogleRedirectUri() {
-  if (process.env.GOOGLE_REDIRECT_URI && process.env.GOOGLE_REDIRECT_URI.trim()) {
-    return process.env.GOOGLE_REDIRECT_URI.trim();
+
+function sanitizeUrlEnv(val) {
+  if (!val || typeof val !== 'string') return '';
+  let cleaned = val.trim().replace(/^['"]+|['"]+$/g, '');
+  // If accidentally entered as "KEY = https://..." or "KEY=https://..."
+  const prefixMatch = cleaned.match(/^[A-Za-z0-9_]+\s*=\s*(https?:\/\/.*)$/i);
+  if (prefixMatch) {
+    cleaned = prefixMatch[1].trim();
   }
-  if (process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim()) {
-    return `${process.env.FRONTEND_URL.trim().replace(/\/+$/, '')}/api/auth/google/callback`;
-  }
-  return 'http://localhost:5173/api/auth/google/callback';
+  return cleaned.replace(/^['"]+|['"]+$/g, '').trim();
 }
+
+function resolveFrontendUrl(req) {
+  // 1. If request came through a reverse proxy (e.g. Vercel rewrite or custom domain)
+  if (req && req.headers) {
+    const fHost = req.headers['x-forwarded-host'];
+    if (fHost) {
+      const proto = (req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+      const host = fHost.split(',')[0].trim();
+      if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+        return `${proto}://${host}`;
+      }
+    }
+
+    const origin = req.headers.origin;
+    if (origin && origin !== 'null' && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      return origin.replace(/\/+$/, '');
+    }
+
+    const referer = req.headers.referer;
+    if (referer) {
+      try {
+        const u = new URL(referer);
+        if (u.host && !u.host.includes('localhost') && !u.host.includes('127.0.0.1')) {
+          return `${u.protocol}//${u.host}`;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // 2. Explicit environment variable: FRONTEND_URL
+  const envFrontend = sanitizeUrlEnv(process.env.FRONTEND_URL).replace(/\/+$/, '');
+  if (envFrontend) {
+    return envFrontend;
+  }
+
+  // 3. Fallback for local development
+  return 'http://localhost:5173';
+}
+
+function getGoogleRedirectUri(req) {
+  const explicitUri = sanitizeUrlEnv(process.env.GOOGLE_REDIRECT_URI);
+  // If explicitly configured to a non-localhost URI, respect it
+  if (explicitUri && !explicitUri.includes('localhost') && !explicitUri.includes('127.0.0.1')) {
+    return explicitUri;
+  }
+
+  // If request originates from a remote frontend (e.g. Vercel), route callback through it
+  const frontend = resolveFrontendUrl(req);
+  if (frontend && !frontend.includes('localhost') && !frontend.includes('127.0.0.1')) {
+    return `${frontend}/api/auth/google/callback`;
+  }
+
+  // If explicit URI is set (e.g. localhost during local dev), use it
+  if (explicitUri) {
+    return explicitUri;
+  }
+
+  return `${frontend}/api/auth/google/callback`;
+}
+
 
 // ── In-memory job store ───────────────────────────────────────────────────────
 const jobs = new Map();
@@ -101,14 +163,16 @@ function parseCookies(req) {
   return list;
 }
 
-function setSessionCookie(res, token) {
-  const isProd = process.env.NODE_ENV === 'production';
+function setSessionCookie(res, token, req) {
+  const isHttps = req?.headers?.['x-forwarded-proto'] === 'https';
+  const isProd = process.env.NODE_ENV === 'production' || isHttps;
   // Non-persistent Session Cookie: omits Max-Age and Expires so browser deletes it when session closes
   res._cookieHeader = `codesense_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax${isProd ? '; Secure' : ''}`;
 }
 
-function clearSessionCookie(res) {
-  const isProd = process.env.NODE_ENV === 'production';
+function clearSessionCookie(res, req) {
+  const isHttps = req?.headers?.['x-forwarded-proto'] === 'https';
+  const isProd = process.env.NODE_ENV === 'production' || isHttps;
   res._cookieHeader = `codesense_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax${isProd ? '; Secure' : ''}`;
 }
 
@@ -897,21 +961,29 @@ const server = http.createServer(async (req, res) => {
 
     // ── Auth: Google OAuth Redirect (Start Flow) ──────────────────────────────
     if (req.method === 'GET' && url === '/api/auth/google') {
+      const frontendUrl = resolveFrontendUrl(req);
       if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
         const errorMsg = 'Google sign-in is not configured on the server. Please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env.';
-        res.writeHead(302, { Location: `/login?error=${encodeURIComponent(errorMsg)}` });
+        res.writeHead(302, { Location: `${frontendUrl}/login?error=${encodeURIComponent(errorMsg)}` });
         res.end();
         return;
       }
 
-      const state = crypto.randomBytes(16).toString('hex');
-      const isProd = process.env.NODE_ENV === 'production';
-      res.setHeader('Set-Cookie', `codesense_oauth_state=${state}; Path=/; HttpOnly; SameSite=Lax${isProd ? '; Secure' : ''}; Max-Age=600`);
+      const redirectUri = getGoogleRedirectUri(req);
+      const statePayload = {
+        nonce: crypto.randomBytes(12).toString('hex'),
+        redirectUri,
+        frontendUrl,
+      };
+      const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+
+      const isProd = process.env.NODE_ENV === 'production' || !frontendUrl.includes('localhost');
+      res.setHeader('Set-Cookie', `codesense_oauth_state=${statePayload.nonce}; Path=/; HttpOnly; SameSite=Lax${isProd ? '; Secure' : ''}; Max-Age=600`);
 
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         new URLSearchParams({
           client_id: GOOGLE_CLIENT_ID,
-          redirect_uri: getGoogleRedirectUri(),
+          redirect_uri: redirectUri,
           response_type: 'code',
           scope: 'openid email profile',
           access_type: 'online',
@@ -929,15 +1001,29 @@ const server = http.createServer(async (req, res) => {
       const fullUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
       const code = fullUrl.searchParams.get('code');
       const errorParam = fullUrl.searchParams.get('error');
+      const stateParam = fullUrl.searchParams.get('state');
+
+      let redirectUriUsed = getGoogleRedirectUri(req);
+      let returnFrontend = resolveFrontendUrl(req);
+
+      if (stateParam) {
+        try {
+          const parsed = JSON.parse(Buffer.from(stateParam, 'base64url').toString('utf8'));
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.redirectUri) redirectUriUsed = parsed.redirectUri;
+            if (parsed.frontendUrl) returnFrontend = parsed.frontendUrl.replace(/\/+$/, '');
+          }
+        } catch (_) {}
+      }
 
       if (errorParam) {
-        res.writeHead(302, { Location: `/login?error=${encodeURIComponent('Google sign-in could not be completed: ' + errorParam)}` });
+        res.writeHead(302, { Location: `${returnFrontend}/login?error=${encodeURIComponent('Google sign-in could not be completed: ' + errorParam)}` });
         res.end();
         return;
       }
 
       if (!code) {
-        res.writeHead(302, { Location: `/login?error=${encodeURIComponent('Google sign-in failed: No authorization code received.')}` });
+        res.writeHead(302, { Location: `${returnFrontend}/login?error=${encodeURIComponent('Google sign-in failed: No authorization code received.')}` });
         res.end();
         return;
       }
@@ -951,7 +1037,7 @@ const server = http.createServer(async (req, res) => {
             code,
             client_id: GOOGLE_CLIENT_ID,
             client_secret: GOOGLE_CLIENT_SECRET,
-            redirect_uri: getGoogleRedirectUri(),
+            redirect_uri: redirectUriUsed,
             grant_type: 'authorization_code',
           }),
         });
@@ -959,7 +1045,7 @@ const server = http.createServer(async (req, res) => {
         const tokenData = await tokenRes.json();
         if (!tokenRes.ok || !tokenData.access_token) {
           const errMsg = tokenData.error_description || tokenData.error || 'Failed to exchange Google authorization code';
-          res.writeHead(302, { Location: `/login?error=${encodeURIComponent('Google sign-in failed: ' + errMsg)}` });
+          res.writeHead(302, { Location: `${returnFrontend}/login?error=${encodeURIComponent('Google sign-in failed: ' + errMsg)}` });
           res.end();
           return;
         }
@@ -971,7 +1057,7 @@ const server = http.createServer(async (req, res) => {
         const googleUser = await profileRes.json();
 
         if (!googleUser.email) {
-          res.writeHead(302, { Location: `/login?error=${encodeURIComponent('Google account did not provide an email address.')}` });
+          res.writeHead(302, { Location: `${returnFrontend}/login?error=${encodeURIComponent('Google account did not provide an email address.')}` });
           res.end();
           return;
         }
@@ -991,7 +1077,7 @@ const server = http.createServer(async (req, res) => {
               details: { provider: 'google_oauth' },
               outcome: 'FAILURE',
             });
-            res.writeHead(302, { Location: `/login?error=${encodeURIComponent('This account has been suspended. Please contact platform administration.')}` });
+            res.writeHead(302, { Location: `${returnFrontend}/login?error=${encodeURIComponent('This account has been suspended. Please contact platform administration.')}` });
             res.end();
             return;
           }
@@ -1017,16 +1103,16 @@ const server = http.createServer(async (req, res) => {
         }
 
         const token = signToken(user);
-        setSessionCookie(res, token);
+        setSessionCookie(res, token, req);
         res.writeHead(302, {
-          Location: `/?auth=google_success`,
+          Location: `${returnFrontend}/?auth=google_success`,
           'Set-Cookie': res._cookieHeader,
         });
         res.end();
         return;
       } catch (err) {
         console.error('[google callback error]', err);
-        res.writeHead(302, { Location: `/login?error=${encodeURIComponent('Google sign-in could not be completed. Please try again.')}` });
+        res.writeHead(302, { Location: `${returnFrontend}/login?error=${encodeURIComponent('Google sign-in could not be completed. Please try again.')}` });
         res.end();
         return;
       }

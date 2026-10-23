@@ -182,7 +182,15 @@ async function createCashfreePaymentLink({ user, planId, billingInterval, return
 
   const linkId = `order_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-  const effectiveReturnUrl = (returnUrl || 'http://localhost:5173/pricing');
+  function cleanUrl(val, fallback) {
+    const raw = (val || fallback).trim().replace(/^['"]+|['"]+$/g, '');
+    const match = raw.match(/^[A-Za-z0-9_]+\s*=\s*(https?:\/\/.*)$/i);
+    return (match ? match[1] : raw).trim().replace(/\/+$/, '');
+  }
+  const frontendBase = cleanUrl(process.env.FRONTEND_URL, 'http://localhost:5173');
+  const backendBase = cleanUrl(process.env.BACKEND_URL, 'http://localhost:4000');
+
+  const effectiveReturnUrl = (returnUrl || `${frontendBase}/pricing`);
   const separator = effectiveReturnUrl.includes('?') ? '&' : '?';
   const finalReturnUrl = effectiveReturnUrl.includes('order_id=')
     ? effectiveReturnUrl
@@ -204,7 +212,7 @@ async function createCashfreePaymentLink({ user, planId, billingInterval, return
       },
       link_meta: {
         return_url: finalReturnUrl,
-        notify_url: notifyUrl || `http://localhost:4000/api/membership/webhook`,
+        notify_url: notifyUrl || `${backendBase}/api/membership/webhook`,
       },
     };
 

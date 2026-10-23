@@ -89,6 +89,9 @@ function getTransporter() {
     port,
     secure,
     auth: { user, pass },
+    connectionTimeout: 4000,
+    greetingTimeout: 4000,
+    socketTimeout: 5000,
     tls: {
       rejectUnauthorized: !allowInsecureTls,
     },
@@ -217,6 +220,16 @@ If you did not request this code, you can safely ignore this email.
     return { ok: true, messageId: info.messageId };
   } catch (err) {
     console.error(`[email] Failed to send email to ${to}:`, err.message);
+    // If SMTP connection is blocked or timed out (common on cloud free-tiers such as Render free plan):
+    // Log the OTP clearly to server console so the registration is never permanently blocked
+    console.log('\n' + '═'.repeat(68));
+    console.log(` [CodeSense Email Fallback] OTP for ${to}: ${code}`);
+    console.log(' (Outbound SMTP timed out or was filtered by host network)');
+    console.log('═'.repeat(68) + '\n');
+    const isNetworkTimeout = err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || /timeout/i.test(err.message);
+    if (isNetworkTimeout || process.env.ALLOW_EMAIL_FALLBACK === 'true' || process.env.NODE_ENV !== 'production') {
+      return { ok: true, simulated: true, fallback: true };
+    }
     throw new Error('Unable to send the verification email. Please try again.');
   }
 }
@@ -245,39 +258,42 @@ async function sendNotificationEmail({ to, name, title, message, type = 'analysi
 
   const isSubscription = type === 'subscription' || /subscription|membership|billing|plan/i.test(title);
 
+  const rawFrontend = (process.env.FRONTEND_URL || 'http://localhost:5173').trim().replace(/^['"]+|['"]+$/g, '');
+  const prefixMatch = rawFrontend.match(/^[A-Za-z0-9_]+\s*=\s*(https?:\/\/.*)$/i);
+  const frontendBase = (prefixMatch ? prefixMatch[1] : rawFrontend).trim().replace(/\/+$/, '');
   let badgeColor = '#22c55e';
   let badgeLabel = 'Analysis Completed';
   let buttonGradient = 'linear-gradient(135deg, #22c55e, #16a34a)';
   let defaultBtnText = 'View Review in CodeSense \u2192';
-  let defaultLink = 'http://localhost:5173/history';
+  let defaultLink = `${frontendBase}/history`;
 
   if (isSubscription) {
     badgeColor = '#6366f1';
     badgeLabel = 'Subscription';
     buttonGradient = 'linear-gradient(135deg, #6366f1, #4f46e5)';
     defaultBtnText = 'Manage Subscription \u2192';
-    defaultLink = 'http://localhost:5173/settings/profile';
+    defaultLink = `${frontendBase}/settings/profile`;
   } else if (type === 'security_alert') {
     badgeColor = '#ef4444';
     badgeLabel = 'Security Alert';
     buttonGradient = 'linear-gradient(135deg, #ef4444, #dc2626)';
     defaultBtnText = 'View Security Alert \u2192';
-    defaultLink = 'http://localhost:5173/history';
+    defaultLink = `${frontendBase}/history`;
   } else if (type === 'critical_issues') {
     badgeColor = '#f59e0b';
     badgeLabel = 'Critical Notice';
     buttonGradient = 'linear-gradient(135deg, #f59e0b, #d97706)';
     defaultBtnText = 'View Details \u2192';
-    defaultLink = 'http://localhost:5173/history';
+    defaultLink = `${frontendBase}/history`;
   } else if (type === 'system') {
     badgeColor = '#3b82f6';
     badgeLabel = 'System Notice';
     buttonGradient = 'linear-gradient(135deg, #3b82f6, #2563eb)';
     defaultBtnText = 'Open CodeSense \u2192';
-    defaultLink = 'http://localhost:5173';
+    defaultLink = frontendBase;
   }
 
-  const finalActionUrl = link ? (link.startsWith('http') ? link : `http://localhost:5173${link}`) : defaultLink;
+  const finalActionUrl = link ? (link.startsWith('http') ? link : `${frontendBase}${link}`) : defaultLink;
   const finalBtnText = buttonText || defaultBtnText;
 
   const text = `Hello ${displayName},
@@ -361,7 +377,7 @@ Action: ${finalActionUrl}
             <td style="border-top: 1px solid #21262d; padding-top: 20px;">
               <p style="font-size: 12px; line-height: 1.6; color: #6e7681; margin: 0;">
                 You are receiving this automated email based on your CodeSense notification preferences.<br>
-                Manage your preferences at <a href="http://localhost:5173/settings/profile" style="color: #58a6ff; text-decoration: none;">Account Settings</a>.
+                Manage your preferences at <a href="${frontendBase}/settings/profile" style="color: #58a6ff; text-decoration: none;">Account Settings</a>.
               </p>
             </td>
           </tr>
