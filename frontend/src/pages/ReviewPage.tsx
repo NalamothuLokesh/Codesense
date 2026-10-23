@@ -73,160 +73,46 @@ function saveJob(j: JobState) {
 }
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
-export function sanitizeMermaid(code: string): string {
+function sanitizeMermaid(code: string): string {
   if (!code) return ''
   let c = code.trim()
-  // Normalize Unicode quotes (curly/smart quotes to standard ASCII)
+
+  // 1. Recover corrupted diagram headers (e.g. graph_TD_User -> graph TD\n    User, flowchart_LR__App -> flowchart LR\n    App)
+  c = c.replace(/^(graph|flowchart)[_ ]([A-Za-z]{2})_+([A-Za-z0-9_]+)/m, '$1 $2\n    $3')
+
+  // 2. Normalize smart/curly quotes to ASCII straight quotes
   c = c.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
   c = c.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")
 
-  // Strip markdown fence markers if accidentally included
+  // 3. Ensure 'end' is on its own separate line if followed by a statement
+  c = c.replace(/(\bend\b)\s+([a-zA-Z0-9_]+)/g, '$1\n    $2')
+
+  // 4. Strip stray markdown fence lines or page breaks
   c = c.replace(/^---+$/gm, '').replace(/^[~`]{3,}.*$/gm, '')
 
-  // Normalize arrows
+  // 5. Normalize arrows
   c = c.replace(/\|\|--\|\{/g, '||--o{')
   c = c.replace(/\s+-->\s+/g, ' --> ')
   c = c.replace(/\s+---\s+/g, ' --- ')
   c = c.replace(/\s+==>\s+/g, ' ==> ')
 
-  // Ensure 'end' is on its own separate line if followed by a statement
-  c = c.replace(/(\bend\b)\s+([a-zA-Z0-9_]+)/g, '$1\n    $2')
-
-  const lines = c.split('\n')
-  const out: string[] = []
-
-  for (const rawLine of lines) {
-    let line = rawLine.trimEnd()
-    const trimmed = line.trim()
-
-    // Skip empty lines or comments
-    if (!trimmed || trimmed.startsWith('%%')) {
-      out.push(line)
-      continue
-    }
-
-    // Diagram direction header: graph TD, graph LR, flowchart TD, etc. Leave untouched!
-    if (/^(graph|flowchart|sequenceDiagram|classDiagram|erDiagram|gantt|pie|gitGraph)\b/i.test(trimmed)) {
-      out.push(line)
-      continue
-    }
-
-    // Subgraph start: subgraph "Title"
-    if (/^subgraph\b/i.test(trimmed)) {
-      const m = line.match(/^(\s*subgraph\s+)(.+)$/i)
-      if (m) {
-        let title = m[2].trim()
-        if (title.startsWith('"') && title.endsWith('"')) {
-          out.push(`${m[1]}${title}`)
-        } else {
-          title = title.replace(/^["']+|["']+$/g, '').replace(/"/g, "'")
-          out.push(`${m[1]}"${title}"`)
-        }
-        continue
-      }
-    }
-
-    // Standalone 'end' keyword
-    if (trimmed === 'end') {
-      out.push(line)
-      continue
-    }
-
-    // Shape labeling on a single line:
-    // e.g. NodeId[label] -> NodeId["label"]
-    // ONLY match single-word NodeId: [a-zA-Z0-9_-]+ (NO whitespace in node ID!)
-    line = line.replace(
-      /(^|\s+|-->\s*|---\s*|==>\s*|\|\s*)([a-zA-Z0-9_-]+)(\(\[|\[\(|\[|\(|\{\{)(.+?)(\]\)|\)\]|\]|\)|\}\})(?=\s*(-->|---|==>|\||$))/g,
-      (_, prefix, nodeId, opener, label, closer) => {
-        const trimmedLabel = label.trim()
-        let cleanLabel = trimmedLabel
-        if (!trimmedLabel.startsWith('"') || !trimmedLabel.endsWith('"') || trimmedLabel.length < 2) {
-          cleanLabel = `"${trimmedLabel.replace(/^["']+|["']+$/g, '').replace(/"/g, "'")}"`
-        }
-        return `${prefix}${nodeId}${opener}${cleanLabel}${closer}`
-      }
-    )
-
-    out.push(line)
-  }
-
-  return out.join('\n')
-}
-
-const CANONICAL_SECTIONS: [number, string[]][] = [
-  [1, ['executive summary', 'health verdict']],
-  [2, ['project objective', 'functional scope']],
-  [3, ['technology stack', 'tech stack', 'key integrations']],
-  [4, ['system architecture', 'component flow']],
-  [5, ['database schema', 'data models']],
-  [6, ['api documentation', 'route surface']],
-  [7, ['security & vulnerability', 'vulnerability assessment', 'security assessment']],
-  [8, ['code quality', 'bug analysis', 'bug findings']],
-  [9, ['limitations', 'project & analysis limitations']],
-  [10, ['future scope', 'architectural evolution']],
-  [11, ['improvement roadmap', 'prioritized improvement']],
-  [12, ['overall result', 'conclusion']],
-]
-
-export function deduplicateMarkdownSections(text: string): string {
-  if (!text) return text
-  const sectionPattern = /^(#{1,2})\s+(?:(\d+)[\.\:\s]+)?([^\n]+)$/gm
-  const matches = Array.from(text.matchAll(sectionPattern))
-  if (matches.length <= 1) return text
-
-  let firstSecIdx = -1
-  const mapped = matches.map((m, i) => {
-    const rawNum = m[2] ? parseInt(m[2], 10) : null
-    let secNum = rawNum && rawNum >= 1 && rawNum <= 12 ? rawNum : null
-    if (!secNum) {
-      const lower = m[3].toLowerCase()
-      if (!lower.includes('software analysis report') && !lower.includes('technical review')) {
-        for (const [num, kws] of CANONICAL_SECTIONS) {
-          if (kws.some(kw => lower.includes(kw))) {
-            secNum = num
-            break
-          }
-        }
-      }
-    }
-    if (secNum && firstSecIdx === -1) firstSecIdx = m.index!
-    return { m, i, secNum }
+  // 6. Subgraph title quoting: ensure subgraph "Title" has double quotes
+  c = c.replace(/^(\s*subgraph\s+)([^"'\n]+)$/gm, (_, prefix, name) => {
+    const trimmed = name.trim()
+    return `${prefix}"${trimmed.replace(/"/g, '')}"`
   })
 
-  const header = firstSecIdx > 0 ? text.slice(0, firstSecIdx).trim() + '\n\n---\n\n' : ''
-  const seen = new Set<number>()
-  const kept: string[] = []
+  // 7. Shape label auto-quoting for special chars
+  c = c.replace(/\(\[([^"\]\)\n]*[,/&][^"\]\)\n]*)\]\)/g, '(["$1"])')
+  c = c.replace(/\[\(([^"\]\)\n]*[,/&][^"\]\)\n]*)\)\]/g, '[("$1")]')
+  c = c.replace(/\[([^"\]\n]*[,/&][^"\]\n]*)\]/g, '["$1"]')
 
-  for (let idx = 0; idx < mapped.length; idx++) {
-    const { m, i, secNum } = mapped[idx]
-    if (!secNum || seen.has(secNum)) continue
-    seen.add(secNum)
-    const start = m.index!
-    const end = i + 1 < matches.length ? matches[i + 1].index! : text.length
-    kept.push(text.slice(start, end).trim())
-  }
-
-  if (kept.length === 0) return text
-  let assembled = (header + kept.join('\n\n---\n\n') + '\n').replace(/(\n\s*---\s*){2,}/g, '\n\n---\n\n')
-
-  // Deduplicate stray diagrams if repeated in multiple sections
-  const seenDiags = new Set<string>()
-  assembled = assembled.replace(
-    /(#{2,3}\s+(?:Architecture Flow Diagram|Use Case Diagram[^\n]*)\n[\s\S]*?)(?=(?:\n#{1,3}\s+|\n---\n|$))/gi,
-    (match, block) => {
-      const key = block.toLowerCase().includes('architecture flow') ? 'arch' : block.toLowerCase().includes('use case') ? 'usecase' : block.toLowerCase().trim()
-      if (seenDiags.has(key)) return ''
-      seenDiags.add(key)
-      return match
-    }
-  )
-
-  return assembled
+  return c
 }
 
 export function parseMd(raw: string): string {
   const blocks: string[] = []
-  let text = deduplicateMarkdownSections(raw)
+  let text = raw
 
   // Protect mermaid blocks
   text = text.replace(/```mermaid\n?([\s\S]*?)```/g, (_: string, code: string) => {

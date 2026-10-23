@@ -733,11 +733,14 @@ def sanitize_mermaid_in_markdown(md: str) -> str:
 
     def sanitize_block(match: re.Match) -> str:
         code = match.group(1).strip()
-        # Normalize Unicode smart/curly quotes
+        # 1. Recover corrupted diagram headers if any (e.g. graph_TD_User -> graph TD\n    User)
+        code = re.sub(r'^(graph|flowchart)[_ ]([A-Za-z]{2})_+([A-Za-z0-9_]+)', r'\1 \2\n    \3', code, flags=re.MULTILINE)
+
+        # 2. Normalize Unicode smart/curly quotes
         code = re.sub(r'[\u201C\u201D\u201E\u201F\u2033\u2036]', '"', code)
         code = re.sub(r'[\u2018\u2019\u201A\u201B\u2032\u2035]', "'", code)
 
-        # Normalize line-break before statements following 'end'
+        # 3. Normalize line-break before statements following 'end'
         code = re.sub(r'(\bend\b)\s+([a-zA-Z0-9_]+)', r'\1\n    \2', code)
 
         lines = []

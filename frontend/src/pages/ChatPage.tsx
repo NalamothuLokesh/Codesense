@@ -18,7 +18,6 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import { MermaidDoc } from '../components/MermaidViewer'
-import { sanitizeMermaid } from './ReviewPage'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Source { heading: string; score: number }
@@ -61,6 +60,42 @@ function makeMsg(role: 'user' | 'assistant' | 'system', content: string, extra?:
   }
 }
 
+function sanitizeMermaid(code: string): string {
+  if (!code) return ''
+  let c = code.trim()
+
+  // 1. Recover corrupted diagram headers (e.g. graph_TD_User -> graph TD\n    User, flowchart_LR__App -> flowchart LR\n    App)
+  c = c.replace(/^(graph|flowchart)[_ ]([A-Za-z]{2})_+([A-Za-z0-9_]+)/m, '$1 $2\n    $3')
+
+  // 2. Normalize smart/curly quotes to ASCII straight quotes
+  c = c.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+  c = c.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")
+
+  // 3. Ensure 'end' is on its own separate line if followed by a statement
+  c = c.replace(/(\bend\b)\s+([a-zA-Z0-9_]+)/g, '$1\n    $2')
+
+  // 4. Strip stray markdown fence lines or page breaks
+  c = c.replace(/^---+$/gm, '').replace(/^[~`]{3,}.*$/gm, '')
+
+  // 5. Normalize arrows
+  c = c.replace(/\|\|--\|\{/g, '||--o{')
+  c = c.replace(/\s+-->\s+/g, ' --> ')
+  c = c.replace(/\s+---\s+/g, ' --- ')
+  c = c.replace(/\s+==>\s+/g, ' ==> ')
+
+  // 6. Subgraph title quoting: ensure subgraph "Title" has double quotes
+  c = c.replace(/^(\s*subgraph\s+)([^"'\n]+)$/gm, (_, prefix, name) => {
+    const trimmed = name.trim()
+    return `${prefix}"${trimmed.replace(/"/g, '')}"`
+  })
+
+  // 7. Shape label auto-quoting for special chars
+  c = c.replace(/\(\[([^"\]\)\n]*[,/&][^"\]\)\n]*)\]\)/g, '(["$1"])')
+  c = c.replace(/\[\(([^"\]\)\n]*[,/&][^"\]\)\n]*)\)\]/g, '[("$1")]')
+  c = c.replace(/\[([^"\]\n]*[,/&][^"\]\n]*)\]/g, '["$1"]')
+
+  return c
+}
 
 // ── Markdown renderer (for chat messages) ─────────────────────────────────────
 function renderMd(text: string): string {
