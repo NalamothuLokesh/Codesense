@@ -36,10 +36,140 @@ const { isConfigured: isEmailConfigured, sendVerificationEmail, sendNotification
 const { getClientIp, checkLoginLimit, checkRegisterLimit, checkResendLimit } = require('./rateLimiter');
 const mongoose = require('mongoose');
 
-const VENV_PYTHON      = path.resolve(__dirname, '..', '.venv', 'Scripts', 'python.exe');
-const PYTHON_BIN       = fs.existsSync(VENV_PYTHON) ? VENV_PYTHON : 'python';
+function resolvePythonBin() {
+  if (process.env.PYTHON_BIN) return process.env.PYTHON_BIN;
+
+  const candidates = [
+    path.resolve(__dirname, '..', '.venv', 'Scripts', 'python.exe'),
+    path.resolve(__dirname, '.venv', 'Scripts', 'python.exe'),
+    path.resolve(__dirname, '..', '.venv', 'bin', 'python'),
+    path.resolve(__dirname, '.venv', 'bin', 'python'),
+    path.resolve(__dirname, '..', 'venv', 'bin', 'python'),
+    path.resolve(__dirname, 'venv', 'bin', 'python'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+
+  if (process.platform === 'win32') {
+    return 'python';
+  }
+
+  // On Linux/Render environments, verify python3 first
+  try {
+    const { execSync } = require('child_process');
+    execSync('python3 --version', { stdio: 'ignore' });
+    return 'python3';
+  } catch (_) {
+    return 'python';
+  }
+}
+
+const PYTHON_BIN       = resolvePythonBin();
 const GENERATOR_SCRIPT = path.resolve(__dirname, 'generate_review_doc.py');
+const CHAT_SCRIPT      = path.resolve(__dirname, 'chat_service.py');
 const PORT             = Number(process.env.PORT || 4000);
+
+// ── AI Chat Service Supervisor (Auto-start for Render / Production / Local) ───
+let chatProcess = null;
+let chatRestartCount = 0;
+const MAX_CHAT_RESTARTS = 5;
+
+async function checkChatHealth(baseUrl) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+    const r = await fetch(`${baseUrl}/health`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return r.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function startChatServiceSupervisor() {
+  const CHAT_BASE = process.env.CHAT_SERVICE_URL || 'http://127.0.0.1:8000';
+
+  // If user pointed to an external remote chat service, skip local child process
+  if (CHAT_BASE && !CHAT_BASE.includes('127.0.0.1') && !CHAT_BASE.includes('localhost')) {
+    console.log(`[ChatSupervisor] Using remote chat service at: ${CHAT_BASE}`);
+    return;
+  }
+
+  // If explicitly disabled via environment variable
+  if (process.env.AUTO_START_CHAT_SERVICE === 'false') {
+    console.log('[ChatSupervisor] AUTO_START_CHAT_SERVICE=false; skipping internal chat service auto-spawn.');
+    return;
+  }
+
+  // Check if chat service is already running (e.g. started via bash start.sh or start_chat_service.bat)
+  const isAlive = await checkChatHealth(CHAT_BASE);
+  if (isAlive) {
+    console.log(`[ChatSupervisor] AI Chat service is already running at ${CHAT_BASE}`);
+    return;
+  }
+
+  if (!fs.existsSync(CHAT_SCRIPT)) {
+    console.warn(`[ChatSupervisor] chat_service.py not found at: ${CHAT_SCRIPT}`);
+    return;
+  }
+
+  console.log(`[ChatSupervisor] Starting AI Chat Service (${PYTHON_BIN} ${CHAT_SCRIPT})...`);
+
+  function spawnChat() {
+    chatProcess = spawn(PYTHON_BIN, [CHAT_SCRIPT], {
+      cwd: __dirname,
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+        CHAT_PORT: '8000',
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    chatProcess.stdout.on('data', data => {
+      const line = data.toString().trim();
+      if (line) console.log(`[chat_service] ${line}`);
+    });
+
+    chatProcess.stderr.on('data', data => {
+      const line = data.toString().trim();
+      if (line) console.error(`[chat_service:err] ${line}`);
+    });
+
+    chatProcess.on('error', err => {
+      console.error(`[ChatSupervisor] Failed to spawn chat_service:`, err.message);
+    });
+
+    chatProcess.on('exit', (code, signal) => {
+      console.warn(`[ChatSupervisor] chat_service exited (code: ${code}, signal: ${signal})`);
+      chatProcess = null;
+
+      // Auto-restart if unexpected termination and within limit
+      if (code !== 0 && code !== null && chatRestartCount < MAX_CHAT_RESTARTS) {
+        chatRestartCount++;
+        const delay = Math.min(1000 * Math.pow(2, chatRestartCount), 10000);
+        console.log(`[ChatSupervisor] Restarting chat_service in ${delay / 1000}s (attempt ${chatRestartCount}/${MAX_CHAT_RESTARTS})...`);
+        setTimeout(spawnChat, delay);
+      }
+    });
+  }
+
+  spawnChat();
+
+  // Clean shutdown handlers
+  const cleanup = () => {
+    if (chatProcess && !chatProcess.killed) {
+      try {
+        console.log('[ChatSupervisor] Stopping chat_service process...');
+        chatProcess.kill('SIGTERM');
+      } catch (_) {}
+    }
+  };
+  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', cleanup);
+  process.on('exit', cleanup);
+}
 
 // ── JWT Secret Validation & Resolution (P1 Security Hardening) ─────────────
 function resolveJwtSecret() {
@@ -2170,16 +2300,28 @@ const server = http.createServer(async (req, res) => {
     if (url.startsWith('/api/chat/')) {
       const CHAT_BASE = process.env.CHAT_SERVICE_URL || 'http://127.0.0.1:8000';
 
-      const proxyChatReq = async (method, chatPath, bodyObj) => {
+      const proxyChatReq = async (method, chatPath, bodyObj, retries = 3) => {
         const opts = {
           method,
           headers: { 'Content-Type': 'application/json' },
           signal: AbortSignal.timeout(600000), // 10 minute timeout for LLM CPU generation
         };
         if (bodyObj) opts.body = JSON.stringify(bodyObj);
-        const r = await fetch(`${CHAT_BASE}${chatPath}`, opts);
-        const data = await r.json();
-        sendJson(res, r.status, data);
+
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          try {
+            const r = await fetch(`${CHAT_BASE}${chatPath}`, opts);
+            const data = await r.json();
+            sendJson(res, r.status, data);
+            return;
+          } catch (e) {
+            if (attempt < retries && (e.cause?.code === 'ECONNREFUSED' || e.message?.includes('fetch failed'))) {
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              continue;
+            }
+            throw e;
+          }
+        }
       };
 
       // POST /api/chat/index
@@ -2214,7 +2356,7 @@ const server = http.createServer(async (req, res) => {
         const body = await readBody(req);
         const { reviewId, sessionId, question } = body;
         if (!reviewId || !question) { sendJson(res, 400, { ok: false, error: 'reviewId and question required' }); return; }
-        const review = await Review.findById(reviewId).select('userId repo');
+        const review = await Review.findById(reviewId).select('userId repo markdown');
         if (!review) { sendJson(res, 404, { ok: false, error: 'Review not found' }); return; }
         if (review.userId.toString() !== auth.id) { sendJson(res, 403, { ok: false, error: 'Forbidden: Private review belongs to another user' }); return; }
 
@@ -2234,7 +2376,7 @@ const server = http.createServer(async (req, res) => {
 
         await recordChatUsage(auth.id);
 
-        try { await proxyChatReq('POST', '/chat/ask', { review_id: reviewId, session_id: sessionId || null, question, repo_name: review.repo }); }
+        try { await proxyChatReq('POST', '/chat/ask', { review_id: reviewId, session_id: sessionId || null, question, repo_name: review.repo, markdown: review.markdown }); }
         catch (e) { sendJson(res, 503, { ok: false, error: `Chat service unavailable: ${e.message}` }); }
         return;
       }
@@ -2245,7 +2387,7 @@ const server = http.createServer(async (req, res) => {
         const body = await readBody(req);
         const { reviewId, sessionId, question } = body;
         if (!reviewId || !question) { sendJson(res, 400, { ok: false, error: 'reviewId and question required' }); return; }
-        const review = await Review.findById(reviewId).select('userId repo');
+        const review = await Review.findById(reviewId).select('userId repo markdown');
         if (!review) { sendJson(res, 404, { ok: false, error: 'Review not found' }); return; }
         if (review.userId.toString() !== auth.id) { sendJson(res, 403, { ok: false, error: 'Forbidden: Private review belongs to another user' }); return; }
 
@@ -2275,11 +2417,30 @@ const server = http.createServer(async (req, res) => {
 
         const CHAT_BASE = process.env.CHAT_SERVICE_URL || 'http://127.0.0.1:8000';
         try {
-          const streamRes = await fetch(`${CHAT_BASE}/chat/ask/stream`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ review_id: reviewId, session_id: sessionId || null, question, repo_name: review.repo }),
-          });
+          let streamRes;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              streamRes = await fetch(`${CHAT_BASE}/chat/ask/stream`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ review_id: reviewId, session_id: sessionId || null, question, repo_name: review.repo, markdown: review.markdown }),
+              });
+              break;
+            } catch (e) {
+              if (attempt < 3 && (e.cause?.code === 'ECONNREFUSED' || e.message?.includes('fetch failed'))) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                continue;
+              }
+              throw e;
+            }
+          }
+
+          if (!streamRes || !streamRes.ok) {
+            const errText = streamRes ? await streamRes.text() : 'No response from chat stream';
+            res.write(`data: ${JSON.stringify({ error: `Chat service error (${streamRes ? streamRes.status : 503}): ${errText}` })}\n\n`);
+            res.end();
+            return;
+          }
 
           if (!streamRes.body) {
             res.end();
@@ -2330,7 +2491,10 @@ const server = http.createServer(async (req, res) => {
 
 // ── Start — server starts immediately if run directly, DB connects in background ──────────────
 if (require.main === module) {
-  server.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`));
+  server.listen(PORT, () => {
+    console.log(`Backend listening on http://localhost:${PORT}`);
+    startChatServiceSupervisor();
+  });
 
   // Connect to DB after server is up — retries automatically
   connectDB().then(() => {

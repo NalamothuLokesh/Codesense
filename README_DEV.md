@@ -120,6 +120,8 @@ Then open: **http://localhost:5173**
 | Action | Command |
 |--------|---------|
 | Start backend | `node backend\server.js` (with venv active) |
+| Start both (dev/prod) | `bash backend/start.sh` or `npm run start:all` |
+| Start chat service | `start_chat_service.bat` (Windows) or `python backend/chat_service.py` |
 | Start frontend | `cd frontend && npm run dev` |
 | Start Ollama | `ollama serve` |
 | Pull AI model | `ollama pull qwen2.5:3b` |
@@ -128,6 +130,8 @@ Then open: **http://localhost:5173**
 | Install frontend deps | `cd frontend && npm install` |
 | Build frontend (prod) | `cd frontend && npm run build` |
 | Check backend health | `curl http://localhost:4000/api/health` |
+| Render Build Command | `npm install && pip install -r chat_requirements.txt` (in backend) |
+| Render Start Command | `bash start.sh` (or `node server.js` which auto-spawns chat) |
 
 ---
 

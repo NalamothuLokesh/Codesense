@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: codesense-backend
+    runtime: node
+    plan: free
+    buildCommand: cd backend && npm install && (pip install -r chat_requirements.txt || pip3 install -r chat_requirements.txt || python3 -m pip install -r chat_requirements.txt || true)
+    startCommand: cd backend && bash start.sh
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CHAT_SERVICE_URL
+        value: http://127.0.0.1:8000
+      - key: AUTO_START_CHAT_SERVICE
+        value: "true"

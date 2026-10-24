@@ -1,0 +1,13 @@
+{
+  "name": "codesense",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CodeSense AI Code Review and Architecture Intelligence Platform",
+  "scripts": {
+    "postinstall": "npm --prefix backend install && (pip install -r backend/chat_requirements.txt || pip3 install -r backend/chat_requirements.txt || true)",
+    "start": "bash start.sh",
+    "start:backend": "node backend/server.js",
+    "start:chat": "python3 backend/chat_service.py || python backend/chat_service.py",
+    "build:frontend": "npm --prefix frontend run build"
+  }
+}

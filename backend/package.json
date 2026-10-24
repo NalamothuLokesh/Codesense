@@ -4,7 +4,9 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
+    "start:all": "bash start.sh",
     "dev": "node server.js",
+    "postinstall": "pip install -r chat_requirements.txt || pip3 install -r chat_requirements.txt || python3 -m pip install -r chat_requirements.txt || python -m pip install -r chat_requirements.txt || true",
     "test": "node --test test/rbac.test.js && node --test test/membership.test.js",
     "test:membership": "node --test test/membership.test.js",
     "test:rbac": "node --test test/rbac.test.js",

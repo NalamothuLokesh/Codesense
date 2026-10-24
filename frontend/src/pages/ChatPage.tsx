@@ -298,7 +298,12 @@ export default function ChatPage() {
         const errMsg = d.error || 'Indexing failed'
         setIndexError(errMsg)
         if (errMsg.includes('unavailable') || errMsg.includes('fetch')) {
-          addSystemMsg(`⚠️ Chat service is not running. Please start it with:\n\n  start_chat_service.bat\n\nThen click 🔄 Retry.`)
+          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          if (isLocal) {
+            addSystemMsg(`⚠️ Chat service is not running locally. Please start it with:\n\n  start_chat_service.bat\n\nThen click 🔄 Retry.`)
+          } else {
+            addSystemMsg(`⚠️ AI Chat service is initializing or connecting. Please wait a moment and click 🔄 Retry.`)
+          }
         } else {
           addSystemMsg(`❌ Failed to build knowledge base: ${errMsg}`)
         }
@@ -306,7 +311,12 @@ export default function ChatPage() {
     } catch (e) {
       const msg = (e as Error).message
       setIndexError(msg)
-      addSystemMsg(`⚠️ Chat service is not running on port 8000.\n\nTo start it, run this in the project folder:\n  start_chat_service.bat\n\nThen click 🔄 Retry above.`)
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      if (isLocal) {
+        addSystemMsg(`⚠️ Chat service is not running on port 8000.\n\nTo start it, run this in the project folder:\n  start_chat_service.bat\n\nThen click 🔄 Retry above.`)
+      } else {
+        addSystemMsg(`⚠️ AI Chat service is initializing or connecting. Please wait a moment and click 🔄 Retry above.`)
+      }
     } finally {
       setIndexing(false)
     }

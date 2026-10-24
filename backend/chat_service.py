@@ -62,17 +62,36 @@ Path(CHROMA_DIR).mkdir(parents=True, exist_ok=True)
 chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
 
 
-# ── Embedding function (calls Ollama /api/embeddings) ─────────────────────────
+# ── Embedding function (calls Ollama /api/embeddings with quick non-blocking fallback) ──
+_ollama_status: Optional[bool] = None
+
+def check_ollama_embeddings_available() -> bool:
+    global _ollama_status
+    if _ollama_status is not None:
+        return _ollama_status
+    if IS_CLOUD_LLM and not os.getenv("FORCE_OLLAMA_EMBED"):
+        _ollama_status = False
+        return False
+    try:
+        r = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=1.0)
+        _ollama_status = (r.status_code == 200)
+    except Exception:
+        _ollama_status = False
+    return _ollama_status
+
+
 class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
-    """Wraps Ollama's embedding endpoint for ChromaDB."""
+    """Wraps Ollama's embedding endpoint for ChromaDB with fast non-blocking fallback."""
     def __call__(self, input: list[str]) -> list[list[float]]:
+        if not check_ollama_embeddings_available():
+            return [[0.0] * 768 for _ in input]
         results = []
         for text in input:
             try:
                 r = requests.post(
                     f"{OLLAMA_BASE}/api/embeddings",
                     json={"model": EMBED_MODEL, "prompt": text},
-                    timeout=3,
+                    timeout=2,
                 )
                 r.raise_for_status()
                 results.append(r.json()["embedding"])
@@ -384,6 +403,7 @@ class AskRequest(BaseModel):
     session_id: Optional[str] = None
     question:   str
     repo_name:  str = ""
+    markdown:   Optional[str] = None
     stream:     bool = False
 
 
@@ -450,6 +470,9 @@ def index_review(req: IndexRequest):
 @app.post("/chat/ask")
 def ask(req: AskRequest):
     """Non-streaming RAG query."""
+    if req.markdown:
+        save_review_text(req.review_id, req.markdown)
+
     session_id = req.session_id or str(uuid.uuid4())
     history    = SESSIONS.setdefault(session_id, [])
 
@@ -486,6 +509,9 @@ def ask(req: AskRequest):
 @app.post("/chat/ask/stream")
 def ask_stream(req: AskRequest):
     """Streaming RAG query (SSE)."""
+    if req.markdown:
+        save_review_text(req.review_id, req.markdown)
+
     session_id = req.session_id or str(uuid.uuid4())
     history    = SESSIONS.setdefault(session_id, [])
 
@@ -557,4 +583,5 @@ def index_status(review_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    chat_port = int(os.getenv("CHAT_PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=chat_port, reload=False)

@@ -1,4 +1,4 @@
-.PHONY: dev frontend backend chat-service build
+.PHONY: dev frontend backend chat-service start-all build
 
 backend:
 	node backend/server.js
@@ -8,6 +8,9 @@ frontend:
 
 chat-service:
 	python backend/chat_service.py
+
+start-all:
+	bash backend/start.sh
 
 build:
 	cd frontend && npm run build

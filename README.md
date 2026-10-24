@@ -297,6 +297,35 @@ Open your browser to: **`http://localhost:5173`**
 
 ---
 
+## 🌐 Production Deployment (Render + Vercel)
+
+CodeSense consists of:
+1. **Frontend (React + Vite)**: Deployed on **Vercel**
+2. **Backend Services (Node API Server + Python AI Chat Service)**: Deployed on **Render** as a unified Web Service.
+
+### Render Dashboard Settings:
+
+| Setting | If Root Directory is `backend` | If Root Directory is Root `.` |
+|---|---|---|
+| **Runtime** | Node | Node |
+| **Build Command** | `npm install && pip install -r chat_requirements.txt` | `cd backend && npm install && pip install -r chat_requirements.txt` |
+| **Start Command** | `bash start.sh` (or `node server.js`) | `cd backend && bash start.sh` (or `bash start.sh`) |
+
+> **Automatic Supervision**: `server.js` contains an integrated supervisor that auto-detects and spawns `chat_service.py` on internal port `8000` if it is not already running. Even if your Start Command is simply `node server.js`, the Python AI Chat service will now run automatically in the background alongside Node!
+
+### Required Environment Variables on Render:
+- `NODE_ENV=production`
+- `CHAT_SERVICE_URL=http://127.0.0.1:8000`
+- `LLM_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai` (or OpenAI/Groq URL)
+- `LLM_API_KEY=your_llm_api_key`
+- `MODEL=gemini-flash-lite-latest`
+- `CHAT_MODEL=gemini-flash-lite-latest`
+- `MONGODB_URI=your_mongodb_connection_string`
+- `JWT_SECRET=your_secure_jwt_secret_min_16_chars`
+- `ADMIN_EMAIL=your_admin_email`
+
+---
+
 ## 💡 Usage Workflow
 
 1. **Sign Up / Sign In**:
