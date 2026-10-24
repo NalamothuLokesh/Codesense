@@ -593,7 +593,7 @@ export default function ChatPage() {
           </button>
         </div>
         <div className="chat-input-hint">
-          Powered by Ollama / Qwen2.5 · Grounded in code analysis with traceable citations
+          Powered by Google Gemini Flash · Grounded in code analysis with traceable citations
         </div>
       </div>
     </div>

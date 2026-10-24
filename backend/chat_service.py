@@ -80,8 +80,11 @@ def check_ollama_embeddings_available() -> bool:
     return _ollama_status
 
 
-class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
-    """Wraps Ollama's embedding endpoint for ChromaDB with fast non-blocking fallback."""
+class EmbeddingFunctionWrapper(embedding_functions.EmbeddingFunction):
+    """Embedding wrapper with quick non-blocking fallback for cloud environments."""
+    def __init__(self):
+        super().__init__()
+
     def __call__(self, input: list[str]) -> list[list[float]]:
         if not check_ollama_embeddings_available():
             return [[0.0] * 768 for _ in input]
@@ -101,7 +104,7 @@ class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
         return results
 
 
-embed_fn = OllamaEmbeddingFunction()
+embed_fn = EmbeddingFunctionWrapper()
 
 
 # ── Chunking ───────────────────────────────────────────────────────────────────
@@ -311,7 +314,7 @@ def build_rag_prompt(
     return messages
 
 
-def call_ollama(messages: list[dict], stream: bool = False):
+def call_llm(messages: list[dict], stream: bool = False):
     """Call either Cloud LLM (Gemini/Groq/OpenAI) or local Ollama chat API."""
     if IS_CLOUD_LLM:
         headers = {"Content-Type": "application/json"}
@@ -354,10 +357,10 @@ def call_ollama(messages: list[dict], stream: bool = False):
         return r
 
 
-def stream_ollama(messages: list[dict]):
-    """Generator that yields SSE-formatted text chunks for both Ollama and Cloud LLM."""
+def stream_llm(messages: list[dict]):
+    """Generator that yields SSE-formatted text chunks for both Cloud LLM (Gemini) and Ollama."""
     try:
-        r = call_ollama(messages, stream=True)
+        r = call_llm(messages, stream=True)
         full_response = []
         for line in r.iter_lines():
             if not line:
@@ -417,7 +420,8 @@ class AskResponse(BaseModel):
 # ── App ────────────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    log.info(f"CodeSense Chat Service starting — model={CHAT_MODEL}, embed={EMBED_MODEL}")
+    provider_name = "Google Gemini Flash (Cloud)" if IS_CLOUD_LLM else "Ollama (Local)"
+    log.info(f"CodeSense Chat Service starting — Provider: {provider_name}, Model: {CHAT_MODEL}")
     log.info(f"ChromaDB path: {CHROMA_DIR}")
     yield
     log.info("Chat service shutting down")
@@ -434,6 +438,12 @@ app.add_middleware(
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
+
+@app.get("/")
+@app.head("/")
+def root():
+    return {"status": "ok", "service": "codesense-chat"}
+
 
 @app.get("/health")
 def health():
@@ -482,7 +492,7 @@ def ask(req: AskRequest):
 
     t0 = time.time()
     try:
-        r       = call_ollama(msgs, stream=False)
+        r       = call_llm(msgs, stream=False)
         data    = r.json()
         if "choices" in data and data["choices"]:
             answer = data["choices"][0]["message"]["content"]
@@ -526,7 +536,7 @@ def ask_stream(req: AskRequest):
 
         # Stream tokens
         full_text = []
-        for chunk_data in stream_ollama(msgs):
+        for chunk_data in stream_llm(msgs):
             yield chunk_data
             # Collect full text from done event
             if '"done": true' in chunk_data:
