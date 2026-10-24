@@ -2780,8 +2780,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIVE DESIGN (Full Mobile UI Architecture)
    ═══════════════════════════════════════════════════════════════════════════ */
-html, body, #root, .shell {
-  overflow-x: hidden;
+html, body {
+  overflow-x: clip;
+  max-width: 100vw;
+}
+
+#root, .shell {
   max-width: 100vw;
 }
 
@@ -3100,7 +3104,7 @@ html, body, #root, .shell {
    ═══════════════════════════════════════════════════════════════════════════ */
 .app-layout {
   display: flex;
-  min-height: calc(100vh - 65px);
+  min-height: calc(100vh - 68px);
   position: relative;
 }
 
@@ -3117,8 +3121,9 @@ html, body, #root, .shell {
   display: flex;
   flex-direction: column;
   position: sticky;
-  top: 65px;
-  height: calc(100vh - 65px);
+  top: 68px;
+  height: calc(100vh - 68px);
+  align-self: flex-start;
   z-index: 40;
   transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   overflow-y: auto;
