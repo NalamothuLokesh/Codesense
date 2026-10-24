@@ -1,0 +1,8 @@
+ai-microcore>=6.4.4
+fastapi>=0.115.5
+uvicorn[standard]>=0.35.0
+chromadb>=0.5.23
+python-dotenv>=1.2.2
+requests>=2.32.3
+pydantic>=2.12.5
+GitPython>=3.1.50

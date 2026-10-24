@@ -623,7 +623,23 @@ function startJob(jobId, repoInput, reviewId) {
       cwd: path.resolve(__dirname, '..'),
       shell: false,
       env: { ...process.env, ...envConfig },
+      stdio: ['ignore', 'pipe', 'pipe']
     });
+
+    let childStderr = '';
+    let childStdout = '';
+    if (child.stderr) {
+      child.stderr.on('data', d => {
+        const text = d.toString();
+        childStderr += text;
+        console.error(`[review_generator:err] ${text.trim()}`);
+      });
+    }
+    if (child.stdout) {
+      child.stdout.on('data', d => {
+        childStdout += d.toString();
+      });
+    }
 
     const progressInterval = setInterval(() => {
       try {
@@ -664,6 +680,32 @@ function startJob(jobId, repoInput, reviewId) {
       try { if (fs.existsSync(progressFile)) fs.unlinkSync(progressFile); } catch (_) {}
       if (workDir) { try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {} }
       const elapsed = Math.round((Date.now() - job.startedAt) / 1000);
+
+      // If generator exited with error and produced no output file
+      if (code !== 0 && !fs.existsSync(outFile)) {
+        job.status = 'error';
+        job.error = childStderr.trim() || childStdout.trim() || `Review generator exited with code ${code}`;
+        console.error(`[review error] (exit ${code}): ${job.error}`);
+        if (reviewId) {
+          await Review.findByIdAndUpdate(reviewId, { status: 'error', elapsedSec: elapsed, error: job.error, finishedAt: new Date() });
+          try {
+            const rev = await Review.findById(reviewId);
+            if (rev && rev.userId) {
+              dispatchNotification({
+                userId: rev.userId,
+                title: 'Analysis Failed',
+                message: `Review for ${rev.repo} failed: ${job.error.slice(0, 100)}`,
+                type: 'critical_issues',
+                repo: rev.repo,
+                reviewId: rev._id,
+                link: `/?reviewId=${rev._id}`,
+              });
+            }
+          } catch (_) {}
+        }
+        return;
+      }
+
       try {
         const raw    = fs.readFileSync(outFile, 'utf-8');
         try { fs.unlinkSync(outFile); } catch (_) {}
@@ -705,7 +747,7 @@ function startJob(jobId, repoInput, reviewId) {
             }
           }
         } else {
-          job.status = 'error'; job.error = result.error || 'Generator failed.';
+          job.status = 'error'; job.error = result.error || childStderr.trim() || 'Generator failed.';
           if (reviewId) {
             await Review.findByIdAndUpdate(reviewId, { status: 'error', elapsedSec: elapsed, error: job.error, finishedAt: new Date() });
             try {
@@ -725,7 +767,8 @@ function startJob(jobId, repoInput, reviewId) {
           }
         }
       } catch (readErr) {
-        job.status = 'error'; job.error = `Could not read output (exit ${code}): ${readErr.message}`;
+        const failureDetails = childStderr.trim() || readErr.message;
+        job.status = 'error'; job.error = `Review generator failed (exit ${code}): ${failureDetails}`;
         if (reviewId) {
           await Review.findByIdAndUpdate(reviewId, { status: 'error', elapsedSec: elapsed, error: job.error, finishedAt: new Date() });
           try {
@@ -734,7 +777,7 @@ function startJob(jobId, repoInput, reviewId) {
               dispatchNotification({
                 userId: rev.userId,
                 title: 'Analysis Failed',
-                message: `Review for ${rev.repo} could not be read: ${readErr.message.slice(0, 80)}`,
+                message: `Review for ${rev.repo} could not be read: ${job.error.slice(0, 80)}`,
                 type: 'critical_issues',
                 repo: rev.repo,
                 reviewId: rev._id,

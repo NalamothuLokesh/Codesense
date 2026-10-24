@@ -1139,14 +1139,21 @@ async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     if len(sys.argv) < 5:
-        print(json.dumps({"ok": False, "error": "Usage: script repo_path repo_url out_file progress_file"}))
+        print(json.dumps({"ok": False, "error": "Usage: script repo_path repo_url out_file progress_file"}), file=sys.stderr)
         sys.exit(1)
     try:
         doc = asyncio.run(generate(sys.argv[1], sys.argv[2], sys.argv[4]))
-        Path(sys.argv[3]).write_text(
+        out_path = Path(sys.argv[3])
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
             json.dumps({"ok": True, "markdown": doc}, ensure_ascii=False), encoding="utf-8")
         print("OK")
     except Exception as e:
-        try: Path(sys.argv[3]).write_text(json.dumps({"ok": False, "error": str(e)}), encoding="utf-8")
-        except: pass
-        print("ERROR"); sys.exit(1)
+        try:
+            out_path = Path(sys.argv[3])
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(json.dumps({"ok": False, "error": str(e)}), encoding="utf-8")
+        except:
+            pass
+        print(f"ERROR: {e}", file=sys.stderr, flush=True)
+        sys.exit(1)
