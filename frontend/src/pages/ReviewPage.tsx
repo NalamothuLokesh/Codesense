@@ -850,24 +850,13 @@ export function buildPdf(repoName: string, html: string, timeStr?: string): stri
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:#fff;color:#1e293b;padding:36px 48px;max-width:960px;margin:0 auto;font-size:13.5px;line-height:1.65}
 
-@media print{
-  body{padding:12px 18px;font-size:12px;line-height:1.5;color:#0f172a}
-  @page{margin:1cm 0.9cm;size:A4}
-  .no-print{display:none!important}
-  h1,h2,h3,h4{break-after:avoid;page-break-after:avoid}
-  h1{break-before:auto;page-break-before:auto;margin-top:22px}
-  .vis-diagram-card,.table-wrap,table,pre,ul,ol,blockquote{break-inside:avoid;page-break-inside:avoid}
-  tr{break-inside:avoid;page-break-inside:avoid}
-  thead{display:table-header-group}
-}
-
 .no-print{text-align:right;margin-bottom:20px}
 .no-print button{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;padding:9px 22px;border-radius:8px;font-size:0.88rem;font-weight:600;cursor:pointer;margin-left:10px;box-shadow:0 2px 8px rgba(34,197,94,0.3)}
 .print-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:14px;border-bottom:2px solid #16a34a}
 .print-title{font-size:1.35rem;font-weight:800;color:#0f172a}
 .print-meta{font-size:0.78rem;color:#64748b}
 
-h1{font-size:1.35rem;font-weight:800;color:#0f172a;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #16a34a}
+h1{font-size:1.35rem;font-weight:800;color:#0f172a;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid #16a34a}
 h2{font-size:1.1rem;font-weight:700;color:#16a34a;margin:20px 0 8px;padding-bottom:5px;border-bottom:1px solid #bbf7d0}
 h3{font-size:0.96rem;font-weight:600;color:#15803d;margin:14px 0 6px}
 h4{font-size:0.88rem;color:#16a34a;margin:10px 0 4px}
@@ -891,9 +880,167 @@ hr{border:none;border-top:1px solid #e2e8f0;margin:18px 0}
 
 .inline-code{font-family:'JetBrains Mono',monospace;font-size:0.82em;background:#f0fdf4;color:#166534;border-radius:4px;padding:2px 5px;border:1px solid #bbf7d0}
 .size-badge{display:inline-block;font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid}
-.mermaid-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:16px 0;display:flex;justify-content:center;overflow-x:auto;page-break-inside:avoid;break-inside:avoid}
+.mermaid-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:16px 0;display:flex;justify-content:center;overflow-x:auto}
 .mermaid-wrap svg{max-width:100%;height:auto}
 .mermaid{display:flex;justify-content:center}
+
+@page {
+  size: A4 portrait;
+  margin: 1.4cm 1.2cm 1.4cm 1.2cm;
+}
+
+@media print {
+  html, body {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .no-print { display: none !important; }
+  .print-header {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    margin-bottom: 16px !important;
+    padding-bottom: 10px !important;
+  }
+
+  /* Section heading pagination */
+  h1 {
+    break-before: page !important;
+    page-break-before: always !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    margin-top: 0 !important;
+    padding-top: 10px !important;
+  }
+  /* Prevent blank page before the very first section right after the header */
+  h1:first-of-type,
+  .print-header + h1,
+  .print-header + * h1 {
+    break-before: avoid !important;
+    page-break-before: avoid !important;
+    margin-top: 10px !important;
+  }
+
+  /* Subheadings never orphan at bottom of a page */
+  h2, h3, h4 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  h2 { margin-top: 18px !important; margin-bottom: 6px !important; }
+  h3 { margin-top: 14px !important; margin-bottom: 4px !important; }
+
+  /* Paragraphs and list items avoid dangling orphan/widow lines */
+  p, li, blockquote {
+    orphans: 3 !important;
+    widows: 3 !important;
+  }
+
+  /* Tables: allow splitting across pages cleanly, but keep rows intact and repeat headers */
+  .table-wrap {
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin: 8px 0 14px !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tbody {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  th, td {
+    padding: 5px 8px !important;
+    font-size: 9.5pt !important;
+    word-break: break-word !important;
+  }
+
+  /* Lists: let lists break naturally between items */
+  ul, ol {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin: 6px 0 10px !important;
+  }
+  li {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 3px !important;
+  }
+
+  /* Code blocks: wrap neatly to prevent horizontal overflow/cutting */
+  pre {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    max-width: 100% !important;
+    padding: 8px 12px !important;
+    margin: 8px 0 !important;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+  pre code {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    font-size: 9.5pt !important;
+  }
+
+  /* Diagrams: keep intact and scale inside page bounds */
+  .mermaid-wrap {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+    margin: 12px 0 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+  .mermaid-wrap svg {
+    max-width: 100% !important;
+    max-height: 200mm !important;
+    width: auto !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto !important;
+  }
+
+  .vis-diagram-card, blockquote {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  hr {
+    border: none !important;
+    border-top: 1px solid #e2e8f0 !important;
+    margin: 14px 0 !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+}
 </style>
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
