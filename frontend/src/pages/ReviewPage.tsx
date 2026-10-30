@@ -24,7 +24,7 @@ import {
   FolderUp,
   Folder,
 } from 'lucide-react'
-import { MermaidDoc } from '../components/MermaidViewer'
+import { MermaidDoc, getMermaid } from '../components/MermaidViewer'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const POLL_MS = 2500
@@ -136,7 +136,11 @@ export function parseMd(raw: string): string {
 
   // Headings, tables, lists, formatting
   for (let n = 6; n >= 1; n--)
-    h = h.replace(new RegExp(`^${'#'.repeat(n)} (.+)$`, 'gm'), `<h${n} id="section-${n}">$1</h${n}>`)
+    h = h.replace(new RegExp(`^${'#'.repeat(n)} (.+)$`, 'gm'), (_, title) => {
+      const isUseCase = /use\s*case/i.test(title)
+      const cls = isUseCase ? ' class="usecase-break"' : ''
+      return `<h${n} id="section-${n}"${cls}>${title}</h${n}>`
+    })
   h = h.replace(/^---+$/gm, '<hr/>')
   h = h.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
   h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -465,7 +469,7 @@ export default function ReviewPage() {
   const progress  = job.total>0 ? Math.round((job.step/job.total)*100) : 0
   const fmtElapsed = (s: number|null) => !s ? '' : s>=60 ? `${Math.floor(s/60)}m ${s%60}s` : `${s}s`
 
-  const openPdf = () => {
+  const openPdf = async () => {
     if (!job.markdown) return
     const matchProject = job.markdown.match(/\|\s*\*\*Project\*\*\s*\|\s*`?([^`|\n]+)`?\s*\|/)
     const repoName = matchProject
@@ -473,27 +477,11 @@ export default function ReviewPage() {
       : (repo.toLowerCase().includes('gito') ? 'CodeSense' : (repo || 'CodeSense'))
     const timeStr  = fmtElapsed(job.elapsed)
 
-    let html = parseMd(job.markdown)
-    const docContainer = document.getElementById('review-doc')
-    if (docContainer) {
-      const renderedWraps = docContainer.querySelectorAll('.mermaid-wrap')
-      if (renderedWraps.length > 0) {
-        const tempDiv = document.createElement('div')
-        tempDiv.innerHTML = html
-        const targetWraps = tempDiv.querySelectorAll('.mermaid-wrap')
-        renderedWraps.forEach((rw, idx) => {
-          const svg = rw.querySelector('svg')
-          if (svg && targetWraps[idx]) {
-            targetWraps[idx].innerHTML = svg.outerHTML
-          }
-        })
-        html = tempDiv.innerHTML
-      }
-    }
+    const finalHtml = await preparePdfHtml(job.markdown)
 
     const win = window.open('', '_blank')
     if (!win) return
-    win.document.write(buildPdf(repoName, html, timeStr))
+    win.document.write(buildPdf(repoName, finalHtml, timeStr))
     win.document.close()
   }
 
@@ -842,6 +830,61 @@ export default function ReviewPage() {
   )
 }
 
+// ── HTML preparation for PDF export (ensures all Mermaid diagrams are rendered inline SVGs) ──
+export async function preparePdfHtml(markdown: string): Promise<string> {
+  const html = parseMd(markdown)
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+
+  const targetWraps = Array.from(tempDiv.querySelectorAll<HTMLElement>('.mermaid-wrap'))
+  if (targetWraps.length === 0) return html
+
+  // 1. First attempt: grab already-rendered SVGs from active DOM
+  const renderedWraps = Array.from(document.querySelectorAll<HTMLElement>('.mermaid-wrap'))
+  if (renderedWraps.length > 0) {
+    renderedWraps.forEach((rw, idx) => {
+      const svg = rw.querySelector('svg')
+      if (svg && targetWraps[idx]) {
+        const clone = svg.cloneNode(true) as SVGSVGElement
+        clone.removeAttribute('height')
+        clone.style.maxWidth = '100%'
+        clone.style.height = 'auto'
+        clone.style.display = 'block'
+        clone.style.margin = '0 auto'
+        targetWraps[idx].innerHTML = clone.outerHTML
+      }
+    })
+  }
+
+  // 2. Second attempt: if any diagram wrap still contains unrendered .mermaid, render it using Mermaid
+  const remainingNodes = Array.from(tempDiv.querySelectorAll<HTMLElement>('.mermaid'))
+  if (remainingNodes.length > 0) {
+    try {
+      const m = await getMermaid()
+      if (m) {
+        tempDiv.style.position = 'fixed'
+        tempDiv.style.left = '-9999px'
+        tempDiv.style.top = '-9999px'
+        tempDiv.style.visibility = 'hidden'
+        document.body.appendChild(tempDiv)
+
+        remainingNodes.forEach((node, i) => {
+          node.id = `pdf-render-${Date.now()}-${i}`
+        })
+        await m.run({ nodes: remainingNodes })
+      }
+    } catch (err) {
+      console.warn('Fallback diagram rendering for PDF notice:', err)
+    } finally {
+      if (tempDiv.parentNode) {
+        document.body.removeChild(tempDiv)
+      }
+    }
+  }
+
+  return tempDiv.innerHTML
+}
+
 // ── PDF builder (Emerald theme) ───────────────────────────────────────────────
 export function buildPdf(repoName: string, html: string, timeStr?: string): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>Code Review — ${repoName}</title>
@@ -880,8 +923,8 @@ hr{border:none;border-top:1px solid #e2e8f0;margin:18px 0}
 
 .inline-code{font-family:'JetBrains Mono',monospace;font-size:0.82em;background:#f0fdf4;color:#166534;border-radius:4px;padding:2px 5px;border:1px solid #bbf7d0}
 .size-badge{display:inline-block;font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid}
-.mermaid-wrap{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:16px 0;display:flex;justify-content:center;overflow-x:auto}
-.mermaid-wrap svg{max-width:100%;height:auto}
+.mermaid-wrap{background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:18px;margin:18px 0;display:block;text-align:center;overflow:visible;box-shadow:0 4px 12px rgba(0,0,0,0.15)}
+.mermaid-wrap svg{max-width:100%!important;height:auto!important;display:block!important;margin:0 auto!important}
 .mermaid{display:flex;justify-content:center}
 
 @page {
@@ -937,6 +980,22 @@ hr{border:none;border-top:1px solid #e2e8f0;margin:18px 0}
   }
   h2 { margin-top: 18px !important; margin-bottom: 6px !important; }
   h3 { margin-top: 14px !important; margin-bottom: 4px !important; }
+
+  /* Headings with introductory text never orphan before following tables or diagrams */
+  h1 + p, h2 + p, h3 + p, h4 + p {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Keep the Use Case Diagram & Actor Matrix subsection unified on a fresh page */
+  .usecase-break {
+    break-before: page !important;
+    page-break-before: always !important;
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    margin-top: 0 !important;
+    padding-top: 10px !important;
+  }
 
   /* Paragraphs and list items avoid dangling orphan/widow lines */
   p, li, blockquote {
@@ -1006,23 +1065,24 @@ hr{border:none;border-top:1px solid #e2e8f0;margin:18px 0}
     font-size: 9.5pt !important;
   }
 
-  /* Diagrams: keep intact and scale inside page bounds */
+  /* Diagrams: keep intact, visible, crisp on dark blueprint canvas, and scaled inside page bounds */
   .mermaid-wrap {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
+    background: #0d1117 !important;
+    border: 1px solid #30363d !important;
     border-radius: 8px !important;
-    padding: 10px !important;
-    margin: 12px 0 !important;
+    padding: 14px 10px !important;
+    margin: 14px 0 !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
+    display: block !important;
+    text-align: center !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
   }
   .mermaid-wrap svg {
     max-width: 100% !important;
-    max-height: 200mm !important;
-    width: auto !important;
+    max-height: 190mm !important;
     height: auto !important;
     display: block !important;
     margin: 0 auto !important;
@@ -1044,7 +1104,27 @@ hr{border:none;border-top:1px solid #e2e8f0;margin:18px 0}
 </style>
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-  try { mermaid.initialize({ startOnLoad: true, theme: 'neutral' }); } catch(_) {}
+  try {
+    mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: {
+      primaryColor: '#16a34a',
+      primaryTextColor: '#ffffff',
+      primaryBorderColor: '#22c55e',
+      lineColor: '#22c55e',
+      secondaryColor: '#161b22',
+      tertiaryColor: '#0d1117',
+      background: '#0d1117',
+      mainBkg: '#161b22',
+      nodeBorder: '#22c55e',
+      clusterBkg: '#1c2128',
+      titleColor: '#e6edf3',
+      edgeLabelBackground: '#161b22',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    }});
+    const unrendered = document.querySelectorAll('.mermaid');
+    if (unrendered.length > 0) {
+      mermaid.run({ nodes: Array.from(unrendered) });
+    }
+  } catch(_) {}
 </script>
 </head><body>
 <div class="no-print">

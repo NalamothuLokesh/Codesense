@@ -658,7 +658,7 @@ export function MermaidDoc({
 
   return (
     <>
-      <div ref={ref} className={className} />
+      <div ref={ref} id={id} className={className} />
 
       {/* Portal interactive toolbars into each .mermaid-wrap */}
       {wraps.map((wrap, idx) =>

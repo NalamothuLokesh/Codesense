@@ -17,7 +17,7 @@ import {
   Rocket,
   FolderGit2,
 } from 'lucide-react'
-import { buildPdf, parseMd } from './ReviewPage'
+import { buildPdf, parseMd, preparePdfHtml } from './ReviewPage'
 import { MermaidDoc } from '../components/MermaidViewer'
 
 interface Review {
@@ -105,12 +105,13 @@ export default function HistoryPage() {
     } finally { setMdLoading(false) }
   }
 
-  const openPdf = (repo: string, md: string) => {
+  const openPdf = async (repo: string, md: string) => {
     const matchProject = md ? md.match(/\|\s*\*\*Project\*\*\s*\|\s*`?([^`|\n]+)`?\s*\|/) : null
     const title = matchProject ? matchProject[1].trim() : (repo.toLowerCase().includes('gito') ? 'CodeSense' : repo)
+    const finalHtml = await preparePdfHtml(md)
     const win = window.open('', '_blank')
     if (!win) return
-    win.document.write(buildPdf(title, parseMd(md)))
+    win.document.write(buildPdf(title, finalHtml))
     win.document.close()
   }
 
