@@ -359,9 +359,23 @@ function readRawBody(req) {
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let b = '';
-    req.on('data', c => { b += c.toString(); });
-    req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch { reject(new Error('Invalid JSON')); } });
+    const chunks = [];
+    let totalLen = 0;
+    req.on('data', c => {
+      chunks.push(c);
+      totalLen += c.length;
+      if (totalLen > 50 * 1024 * 1024) {
+        reject(new Error('Payload too large (maximum 50MB)'));
+      }
+    });
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        reject(new Error('Invalid JSON'));
+      }
+    });
     req.on('error', reject);
   });
 }
@@ -508,7 +522,7 @@ if (!fs.existsSync(STORAGE_TEMP)) fs.mkdirSync(STORAGE_TEMP, { recursive: true }
 
 // ── Repo resolver ─────────────────────────────────────────────────────────────
 function resolveRepoPath(input, callback) {
-  const t = (input || '').trim();
+  const t = (input || '').trim().replace(/^["']+|["']+$/g, '').trim();
   if (!t) { callback(null, path.resolve(__dirname, '..'), null); return; }
   if (/^https?:\/\//i.test(t) || /^git@/i.test(t) || /^ssh:\/\//i.test(t)) {
     const workDir   = fs.mkdtempSync(path.join(STORAGE_TEMP, 'codesense-review-'));
@@ -523,7 +537,30 @@ function resolveRepoPath(input, callback) {
     });
     return;
   }
-  callback(null, t, null);
+
+  // Local filesystem directory validation
+  const resolvedPath = path.resolve(t);
+  if (!fs.existsSync(resolvedPath)) {
+    const isCloud = !!process.env.RENDER || process.env.NODE_ENV === 'production';
+    const errMsg = isCloud
+      ? `Local directory "${t}" not found. On this cloud deployment, local computer drives (like C:\\ or E:\\) cannot be accessed directly by the server. Please use the "Upload Folder" feature or provide a GitHub repository URL.`
+      : `Local directory "${t}" does not exist on this machine. Please check the path and try again.`;
+    callback(new Error(errMsg), null, null);
+    return;
+  }
+
+  try {
+    const stat = fs.statSync(resolvedPath);
+    if (!stat.isDirectory()) {
+      callback(new Error(`"${t}" is a file, not a directory. Please provide a path to a project directory.`), null, null);
+      return;
+    }
+  } catch (statErr) {
+    callback(statErr, null, null);
+    return;
+  }
+
+  callback(null, resolvedPath, null);
 }
 
 // ── Notification Dispatcher (DB + Email) ──────────────────────────────────────
@@ -587,32 +624,11 @@ async function dispatchNotification({ userId, title, message, type, repo, review
 }
 
 // ── Job runner ────────────────────────────────────────────────────────────────
-function startJob(jobId, repoInput, reviewId) {
-  const job = { status: 'cloning', step: 0, total: 4, message: 'Cloning repository…', markdown: null, error: null, startedAt: Date.now(), reviewId };
+function startJob(jobId, repoInput, reviewId, overrideWorkDir = null) {
+  const job = { status: 'cloning', step: 0, total: 4, message: overrideWorkDir ? 'Reading uploaded files…' : 'Cloning repository…', markdown: null, error: null, startedAt: Date.now(), reviewId };
   jobs.set(jobId, job);
 
-  resolveRepoPath(repoInput, async (err, repoPath, workDir) => {
-    if (err) {
-      if (workDir) { try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {} }
-      job.status = 'error'; job.error = err.toString().slice(0, 500);
-      if (reviewId) {
-        await Review.findByIdAndUpdate(reviewId, { status: 'error', error: job.error, finishedAt: new Date() });
-        try {
-          const rev = await Review.findById(reviewId);
-          if (rev && rev.userId) {
-            dispatchNotification({
-              userId: rev.userId,
-              title: 'Analysis Failed',
-              message: `Review for ${rev.repo} failed during cloning: ${job.error.slice(0, 100)}`,
-              type: 'critical_issues',
-              repo: rev.repo,
-              reviewId: rev._id,
-            });
-          }
-        } catch (_) {}
-      }
-      return;
-    }
+  const executeAnalysis = (repoPath, workDir) => {
     job.status = 'running'; job.message = 'Reading source files…';
 
     const outFile      = path.join(STORAGE_TEMP, `codesense-out-${jobId}.json`);
@@ -788,7 +804,36 @@ function startJob(jobId, repoInput, reviewId) {
         }
       }
     });
-  });
+  };
+
+  if (overrideWorkDir) {
+    executeAnalysis(overrideWorkDir, overrideWorkDir);
+  } else {
+    resolveRepoPath(repoInput, async (err, repoPath, workDir) => {
+      if (err) {
+        if (workDir) { try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {} }
+        job.status = 'error'; job.error = (err.message || err.toString()).slice(0, 500);
+        if (reviewId) {
+          await Review.findByIdAndUpdate(reviewId, { status: 'error', error: job.error, finishedAt: new Date() });
+          try {
+            const rev = await Review.findById(reviewId);
+            if (rev && rev.userId) {
+              dispatchNotification({
+                userId: rev.userId,
+                title: 'Analysis Failed',
+                message: `Review for ${rev.repo} failed during setup: ${job.error.slice(0, 100)}`,
+                type: 'critical_issues',
+                repo: rev.repo,
+                reviewId: rev._id,
+              });
+            }
+          } catch (_) {}
+        }
+        return;
+      }
+      executeAnalysis(repoPath, workDir);
+    });
+  }
 }
 
 // ── HTTP server ───────────────────────────────────────────────────────────────
@@ -1920,7 +1965,8 @@ const server = http.createServer(async (req, res) => {
     // ── Repository Review: Start Job (Quota & Permission Enforced) ───────────
     if (req.method === 'POST' && url === '/api/full-review/start') {
       const body = await readBody(req);
-      const repoInput = (body.repoPath || '').trim();
+      const rawInput = (body.repoPath || '').trim();
+      const repoInput = rawInput.replace(/^["']+|["']+$/g, '').trim();
       if (!repoInput) { sendJson(res, 400, { ok: false, error: 'repoPath is required' }); return; }
 
       const authUser = verifyToken(req);
@@ -1966,6 +2012,81 @@ const server = http.createServer(async (req, res) => {
       console.log(`[job:${jobId}] ${repoInput} (user:${userDoc.email})`);
       startJob(jobId, repoInput, reviewId);
       sendJson(res, 200, { ok: true, jobId, remainingReviews: quota.remaining === -1 ? -1 : Math.max(0, quota.remaining - 1) }); return;
+    }
+
+    // ── Repository Review: Uploaded Folder (Direct Local Project Review) ─────
+    if (req.method === 'POST' && url === '/api/full-review/upload') {
+      const body = await readBody(req);
+      const { folderName, files } = body;
+      if (!Array.isArray(files) || files.length === 0) {
+        sendJson(res, 400, { ok: false, error: 'No files provided for review' });
+        return;
+      }
+
+      const authUser = verifyToken(req);
+      if (!authUser) {
+        sendJson(res, 401, {
+          ok: false,
+          error: 'Sign in to run repository reviews under your monthly allowance.',
+          code: 'AUTH_REQUIRED',
+        });
+        return;
+      }
+
+      const userDoc = await User.findById(authUser.id);
+      if (!userDoc) {
+        sendJson(res, 401, { ok: false, error: 'Account not found' });
+        return;
+      }
+
+      if (userDoc.status === 'SUSPENDED') {
+        sendJson(res, 403, { ok: false, error: 'Account suspended', code: 'ACCOUNT_SUSPENDED' });
+        return;
+      }
+
+      // Hard server-side quota verification
+      const quota = await checkReviewQuota(userDoc._id.toString(), userDoc.role);
+      if (!quota.allowed) {
+        sendJson(res, 403, {
+          ok: false,
+          error: quota.error,
+          code: quota.code || 'QUOTA_EXCEEDED',
+          plan: quota.plan,
+          limit: quota.limit,
+          used: quota.used,
+          remaining: quota.remaining,
+        });
+        return;
+      }
+
+      const jobId = crypto.randomBytes(8).toString('hex');
+      const workDir = fs.mkdtempSync(path.join(STORAGE_TEMP, `codesense-upload-${jobId}-`));
+      const normalizedBase = path.resolve(workDir);
+
+      try {
+        for (const file of files) {
+          if (!file || !file.path || typeof file.content !== 'string') continue;
+          // Protect against directory traversal attacks
+          const safeRel = file.path.replace(/^[/\\]+/, '').replace(/\.\./g, '');
+          const targetPath = path.resolve(normalizedBase, safeRel);
+          if (!targetPath.startsWith(normalizedBase)) continue;
+          fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+          fs.writeFileSync(targetPath, file.content, 'utf-8');
+        }
+      } catch (writeErr) {
+        try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
+        sendJson(res, 500, { ok: false, error: `Failed to unpack uploaded project files: ${writeErr.message}` });
+        return;
+      }
+
+      const displayProject = (folderName || 'Uploaded Project').trim().slice(0, 80);
+      const rev = await Review.create({ userId: userDoc._id, repo: displayProject, branch: 'local' });
+      const reviewId = rev._id;
+
+      console.log(`[job:${jobId}] [upload] ${displayProject} (${files.length} files) (user:${userDoc.email})`);
+      startJob(jobId, displayProject, reviewId, workDir);
+      sendJson(res, 200, { ok: true, jobId, remainingReviews: quota.remaining === -1 ? -1 : Math.max(0, quota.remaining - 1) });
+      return;
     }
 
     const pollMatch = url.match(/^\/api\/full-review\/status\/([a-f0-9]+)$/);

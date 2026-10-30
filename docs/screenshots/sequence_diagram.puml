@@ -1,0 +1,31 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundcorner 8
+
+title Fig 4.6 Sequence Diagram — CodeSense Review & Exploration Workflow
+
+participant "Developer" as Dev
+participant "Presentation\n(React 19 SPA)" as Web
+participant "API Gateway\n(Node.js)" as Gateway
+participant "Review Engine\n(Python 3.11)" as Engine
+participant "Data & AI\n(Mongo, Chroma, Gemini)" as Backend
+
+Dev -> Web : submit repository (URL / local path)
+Web -> Gateway : POST /api/review (JWT token)
+Gateway -> Engine : spawn review job (jobId)
+Engine -> Engine : clone sandbox & static heuristic scan
+Engine -> Backend : 4-stage sequential LLM prompts (P1-P4)
+Backend --> Engine : return review sections & health scorecard
+Engine -> Backend : persist 12-section markdown & index ChromaDB
+Engine -> Gateway : notify job complete
+Web -> Gateway : poll status & fetch specification
+Gateway --> Web : return review report & health scores
+Web --> Dev : render dashboard, Mermaid charts & RAG chat
+Dev -> Web : query code assistant (natural language)
+Web -> Backend : retrieve top-K context & stream response
+Backend --> Dev : source-cited interactive explanation
+
+@enduml

@@ -1,0 +1,34 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundcorner 8
+
+title Fig 4.8 Deployment Diagram — CodeSense Infrastructure Topology
+
+node "Developer Client Workstation" as ClientNode {
+  artifact "CodeSense React 19 SPA\n(Vite Bundle, Dashboard, Mermaid Viewer, RAG Chat)" as Frontend
+}
+
+node "Application & AI Execution Server" as AppServer {
+  component "Node.js Express Gateway (v20+)\n(server.js, JWT Auth, Quotas, Process Supervisor)" as Gateway
+  component "Python 3.11 Microservices\n(chat_service.py ASGI :8000, generate_review_doc.py)" as PyEngine
+}
+
+node "Local Storage & Vector Store" as LocalStorage {
+  database "ChromaDB Embedded Store\n(backend/chroma_db/, HNSW Vectors)" as ChromaDB
+  folder "Ephemeral Sandbox\n(storage/temp/<uuid>/, Git clones)" as Sandbox
+}
+
+node "Cloud Database & Third-Party AI Services" as CloudNode {
+  database "MongoDB Atlas (TLS Port 27017)\n(users, reviews, quotas, audit_logs)" as MongoCloud
+  cloud "Google Cloud AI Endpoints\n(gemini-flash-lite, text-embedding-004)" as GeminiCloud
+  cloud "Auxiliary Services\n(Google OAuth 2.0 PKCE, Nodemailer SMTP :587)" as AuxServices
+}
+
+Frontend --> AppServer : " HTTPS / JSON (Ports 443 / 4000) "
+AppServer <--> LocalStorage : " write / read / index "
+AppServer --> CloudNode : " TLS 1.3 / HTTPS (Ports 27017 / 443 / 587) "
+
+@enduml

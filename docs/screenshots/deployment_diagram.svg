@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 660" width="860" height="660">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0f172a"/>
+    </marker>
+    <marker id="arrow-start" viewBox="0 0 10 10" refX="3" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 8 1.5 L 0 5 L 8 8.5 z" fill="#0f172a"/>
+    </marker>
+  </defs>
+
+  <style>
+    .header-title { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #0f172a; }
+    .node-title { font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; fill: #0f172a; }
+    .node-sub { font-family: Arial, sans-serif; font-size: 10px; font-weight: bold; fill: #1e293b; }
+    .item-text { font-family: Arial, sans-serif; font-size: 9px; fill: #334155; }
+    .conn-label { font-family: Arial, sans-serif; font-size: 8.5px; font-weight: bold; fill: #0f172a; }
+    .caption { font-family: Arial, sans-serif; font-size: 13.5px; font-weight: bold; fill: #0f172a; }
+  </style>
+
+  <!-- Outer Frame -->
+  <rect x="20" y="20" width="820" height="595" rx="8" fill="#fafafa" stroke="#334155" stroke-width="2"/>
+  <rect x="20" y="20" width="820" height="38" rx="8" fill="#f1f5f9" stroke="#334155" stroke-width="2"/>
+  <text x="40" y="44" class="header-title">Deployment Diagram — CodeSense Platform Infrastructure</text>
+
+  <!-- ========================================================= -->
+  <!-- TOP NODE: DEVELOPER CLIENT WORKSTATION                    -->
+  <!-- ========================================================= -->
+  <rect x="110" y="75" width="620" height="78" rx="6" fill="#ffffff" stroke="#1e293b" stroke-width="1.6"/>
+  <text x="420" y="97" text-anchor="middle" class="node-title">Developer Client Workstation</text>
+  <text x="420" y="115" text-anchor="middle" class="item-text">CodeSense React 19 SPA (Vite Production Bundle, TypeScript)</text>
+  <text x="420" y="132" text-anchor="middle" class="item-text">Review &amp; Health Inspector, Dynamic Mermaid.js Engine, Interactive RAG Chat Console</text>
+
+  <!-- Connector: Client to Server -->
+  <line x1="420" y1="153" x2="420" y2="198" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="310" y="167" width="220" height="16" fill="#ffffff" stroke="#94a3b8" stroke-width="0.8" rx="3"/>
+  <text x="420" y="179" text-anchor="middle" class="conn-label">HTTPS / JSON REST API (Ports 443 / 4000)</text>
+
+  <!-- ========================================================= -->
+  <!-- MIDDLE ROW: APP SERVER & LOCAL STORAGE                    -->
+  <!-- ========================================================= -->
+
+  <!-- Left: Application & AI Execution Server -->
+  <rect x="110" y="200" width="295" height="180" rx="6" fill="#ffffff" stroke="#1e293b" stroke-width="1.6"/>
+  <rect x="110" y="200" width="295" height="26" rx="6" fill="#f8fafc" stroke="#1e293b" stroke-width="1.6"/>
+  <text x="257" y="217" text-anchor="middle" class="node-title">Application &amp; AI Execution Server</text>
+  
+  <text x="125" y="244" class="node-sub">Node.js Runtime (v20+):</text>
+  <text x="135" y="259" class="item-text">• backend/server.js (Express Gateway)</text>
+  <text x="135" y="274" class="item-text">• JWT Session Verification, Rate Limits &amp; Quotas</text>
+  <text x="135" y="289" class="item-text">• Child Process Supervisor (Auto-spawns FastAPI)</text>
+
+  <text x="125" y="312" class="node-sub">Python 3.11 Microservices:</text>
+  <text x="135" y="327" class="item-text">• chat_service.py (FastAPI ASGI on :8000)</text>
+  <text x="135" y="342" class="item-text">• generate_review_doc.py (Microcore Engine)</text>
+  <text x="135" y="357" class="item-text">• Static Heuristic Scanner &amp; Context Budgeter</text>
+
+  <!-- Right: Local Storage & Vector Store -->
+  <rect x="435" y="200" width="295" height="180" rx="6" fill="#ffffff" stroke="#1e293b" stroke-width="1.6"/>
+  <rect x="435" y="200" width="295" height="26" rx="6" fill="#f8fafc" stroke="#1e293b" stroke-width="1.6"/>
+  <text x="582" y="217" text-anchor="middle" class="node-title">Local Storage &amp; Vector Store</text>
+
+  <text x="450" y="244" class="node-sub">ChromaDB Persistent Store:</text>
+  <text x="460" y="259" class="item-text">• backend/chroma_db/ (HNSW Vector Index)</text>
+  <text x="460" y="274" class="item-text">• 600-char Review Document Chunks</text>
+  <text x="460" y="289" class="item-text">• Fast Cosine Similarity Vector Search</text>
+
+  <text x="450" y="312" class="node-sub">Ephemeral Sandbox Storage:</text>
+  <text x="460" y="327" class="item-text">• storage/temp/&lt;uuid&gt;/ (Git Clones)</text>
+  <text x="460" y="342" class="item-text">• Pruned &amp; Normalized Source Trees</text>
+  <text x="460" y="357" class="item-text">• Local Run Histories &amp; Review Markdown Cache</text>
+
+  <!-- Bidirectional connection between App Server and Local Storage -->
+  <line x1="405" y1="290" x2="433" y2="290" stroke="#0f172a" stroke-width="1.4" marker-end="url(#arrow)" marker-start="url(#arrow-start)"/>
+  <rect x="398" y="270" width="44" height="15" fill="#ffffff" stroke="#94a3b8" stroke-width="0.7" rx="2"/>
+  <text x="420" y="281" text-anchor="middle" font-family="Arial, sans-serif" font-size="7.5px" font-weight="bold" fill="#0f172a">I/O</text>
+
+  <!-- Connector: App Server to Cloud Services -->
+  <line x1="420" y1="380" x2="420" y2="423" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <rect x="290" y="394" width="260" height="16" fill="#ffffff" stroke="#94a3b8" stroke-width="0.8" rx="3"/>
+  <text x="420" y="406" text-anchor="middle" class="conn-label">TLS 1.3 / HTTPS (Ports 27017 / 443 / 587)</text>
+
+  <!-- ========================================================= -->
+  <!-- BOTTOM NODE: CLOUD DATABASE & THIRD-PARTY AI SERVICES     -->
+  <!-- ========================================================= -->
+  <rect x="110" y="425" width="620" height="135" rx="6" fill="#ffffff" stroke="#1e293b" stroke-width="1.6"/>
+  <rect x="110" y="425" width="620" height="26" rx="6" fill="#f8fafc" stroke="#1e293b" stroke-width="1.6"/>
+  <text x="420" y="442" text-anchor="middle" class="node-title">Cloud Database &amp; Third-Party AI Services</text>
+
+  <!-- Column 1: MongoDB Atlas -->
+  <rect x="125" y="462" width="185" height="85" rx="4" fill="#fafafa" stroke="#64748b" stroke-width="1.2"/>
+  <text x="217" y="480" text-anchor="middle" class="node-sub">MongoDB Atlas Cloud</text>
+  <text x="135" y="497" class="item-text">• Mongoose ODM Connection</text>
+  <text x="135" y="512" class="item-text">• Users, Roles &amp; bcrypt Hashes</text>
+  <text x="135" y="527" class="item-text">• 12-Section Spec Documents</text>
+  <text x="135" y="540" class="item-text">• Audit Logs &amp; Usage Quotas</text>
+
+  <!-- Column 2: Google Cloud AI -->
+  <rect x="325" y="462" width="195" height="85" rx="4" fill="#fafafa" stroke="#64748b" stroke-width="1.2"/>
+  <text x="422" y="480" text-anchor="middle" class="node-sub">Google Cloud AI Platform</text>
+  <text x="335" y="497" class="item-text">• Google Gemini Flash API</text>
+  <text x="335" y="512" class="item-text">• Structured JSON Constraints</text>
+  <text x="335" y="527" class="item-text">• text-embedding-004 Model</text>
+  <text x="335" y="540" class="item-text">• Ordered Model Fallback Pool</text>
+
+  <!-- Column 3: Auxiliary Services -->
+  <rect x="535" y="462" width="180" height="85" rx="4" fill="#fafafa" stroke="#64748b" stroke-width="1.2"/>
+  <text x="625" y="480" text-anchor="middle" class="node-sub">Auxiliary Cloud Services</text>
+  <text x="545" y="497" class="item-text">• Google OAuth 2.0 PKCE</text>
+  <text x="545" y="512" class="item-text">• Nodemailer SMTP (:587)</text>
+  <text x="545" y="527" class="item-text">• Cashfree Payment Gateway</text>
+  <text x="545" y="540" class="item-text">• GitHub Public / Private API</text>
+
+  <!-- Caption -->
+  <text x="420" y="642" text-anchor="middle" class="caption">Fig 4.8 Deployment Diagram</text>
+</svg>

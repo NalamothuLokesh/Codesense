@@ -21,6 +21,8 @@ import {
   GitFork,
   Clock,
   Check,
+  FolderUp,
+  Folder,
 } from 'lucide-react'
 import { MermaidDoc } from '../components/MermaidViewer'
 
@@ -219,6 +221,11 @@ export default function ReviewPage() {
   const nav = useNavigate()
   const [repo, setRepo]     = useState('')
   const [branch, setBranch] = useState('main')
+  const [inputMode, setInputMode] = useState<'url' | 'upload'>('url')
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ path: string; content: string }>>([])
+  const [uploadedFolderName, setUploadedFolderName] = useState<string>('')
+  const [isReadingFolder, setIsReadingFolder] = useState<boolean>(false)
+  const folderInputRef = useRef<HTMLInputElement>(null)
   const [job, setJob]       = useState<JobState>(() => loadJob())
   const pollRef = useRef<ReturnType<typeof setInterval>|null>(null)
 
@@ -301,22 +308,123 @@ export default function ReviewPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files
+    if (!fileList || fileList.length === 0) return
+    setIsReadingFolder(true)
+    try {
+      const rawFiles = Array.from(fileList)
+      const firstPath = rawFiles[0].webkitRelativePath || ''
+      const baseDir = firstPath.split('/')[0] || 'Local Project'
+      setUploadedFolderName(baseDir)
+
+      const skipDirNames = new Set([
+        'node_modules', '.git', '.venv', 'venv', 'dist', 'build', '.next', '.turbo',
+        '.cache', 'reviews_cache', 'chroma_db', 'storage', 'coverage', '.vscode', '.idea',
+        '__pycache__', '.agents', '.gemini'
+      ])
+      const allowedExts = new Set([
+        '.py', '.js', '.ts', '.tsx', '.jsx', '.java', '.go', '.rs', '.rb', '.php',
+        '.cs', '.cpp', '.c', '.h', '.html', '.css', '.scss', '.json', '.toml',
+        '.yaml', '.yml', '.md', '.txt', '.sh', '.sql', '.graphql', '.xml', '.cfg'
+      ])
+
+      const filesToRead: Array<{ path: string; content: string }> = []
+      for (const f of rawFiles) {
+        const fullRel = f.webkitRelativePath
+        const rel = fullRel.includes('/') ? fullRel.slice(fullRel.indexOf('/') + 1) : fullRel
+        const parts = rel.split('/')
+        if (parts.some(p => skipDirNames.has(p.toLowerCase()))) continue
+
+        const ext = ('.' + rel.split('.').pop()?.toLowerCase()) || ''
+        const fname = f.name.toLowerCase()
+        if (!allowedExts.has(ext) && fname !== 'dockerfile' && fname !== 'makefile') continue
+        if (f.size > 1024 * 500) continue // skip files larger than 500KB
+
+        try {
+          const text = await f.text()
+          if (text.trim()) {
+            filesToRead.push({ path: rel, content: text })
+          }
+        } catch {
+          // ignore unreadable files
+        }
+      }
+
+      setUploadedFiles(filesToRead)
+      setRepo(baseDir)
+    } finally {
+      setIsReadingFolder(false)
+    }
+  }
+
   const startReview = async () => {
-    if (!repo.trim()) return
+    if (inputMode === 'upload') {
+      if (uploadedFiles.length === 0) return
+      stopPoll()
+      const displayRepo = uploadedFolderName || 'Uploaded Project'
+      const fresh: JobState = {
+        ...EMPTY_JOB,
+        status: 'cloning' as const,
+        message: 'Uploading project files…',
+        startedAt: Date.now(),
+        repo: displayRepo,
+        branch: 'local',
+      }
+      setJob(fresh); saveJob(fresh)
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        const r = await fetch('/api/full-review/upload', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ folderName: displayRepo, files: uploadedFiles }),
+        })
+        const data = await r.json()
+
+        if (!data.ok) {
+          if (data.code === 'QUOTA_EXCEEDED') {
+            setJob(EMPTY_JOB); saveJob(EMPTY_JOB)
+            setQuotaModal({
+              open: true,
+              message: data.error || 'Monthly repository review quota reached.',
+              plan: data.plan || 'Free',
+            })
+            return
+          }
+          if (data.code === 'AUTH_REQUIRED') {
+            setJob(EMPTY_JOB); saveJob(EMPTY_JOB)
+            nav('/signup?redirect=/')
+            return
+          }
+          throw new Error(data.error || 'Failed to start review')
+        }
+
+        loadQuota()
+        applyJob(prev => ({ ...prev, jobId: data.jobId }))
+        pollJob(data.jobId)
+      } catch (e: unknown) {
+        applyJob(prev => ({ ...prev, status: 'error', error: (e as Error).message }))
+      }
+      return
+    }
+
+    const cleanRepo = repo.trim().replace(/^["']+|["']+$/g, '').trim()
+    if (!cleanRepo) return
     stopPoll()
     const fresh: JobState = {
       ...EMPTY_JOB,
       status: 'cloning' as const,
       message: 'Starting review…',
       startedAt: Date.now(),
-      repo: repo.trim(),
+      repo: cleanRepo,
       branch: branch.trim() || 'main',
     }
     setJob(fresh); saveJob(fresh)
     try {
       const headers: Record<string,string> = { 'Content-Type':'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
-      const r    = await fetch('/api/full-review/start', { method:'POST', headers, body: JSON.stringify({ repoPath:repo.trim(), branch:branch.trim()||'main' }) })
+      const r    = await fetch('/api/full-review/start', { method:'POST', headers, body: JSON.stringify({ repoPath:cleanRepo, branch:branch.trim()||'main' }) })
       const data = await r.json()
 
       if (!data.ok) {
@@ -350,6 +458,8 @@ export default function ReviewPage() {
     setJob(EMPTY_JOB)
     saveJob(EMPTY_JOB)
     setRepo('')
+    setUploadedFiles([])
+    setUploadedFolderName('')
   }
   const isRunning = job.status==='cloning'||job.status==='running'
   const progress  = job.total>0 ? Math.round((job.step/job.total)*100) : 0
@@ -398,7 +508,7 @@ export default function ReviewPage() {
           <span className="hero-accent">seconds, not hours</span>
         </h1>
         <p className="hero-desc">
-          Paste a GitHub URL or local path. CodeSense clones it, analyzes high-signal files,
+          Paste a GitHub URL or upload your local project folder. CodeSense analyzes high-signal files
           and generates an architectural review with interactive Mermaid diagrams.
         </p>
         {!user && (
@@ -425,33 +535,109 @@ export default function ReviewPage() {
             )}
           </div>
         )}
-        <label className="input-label">Target Repository</label>
-        <div className="input-row">
-          <div className="input-wrap repo-wrap">
-            <Link2 size={16} className="input-icon" />
-            <input
-              className="inp"
-              placeholder="https://github.com/owner/repo  or  /path/to/local/repo"
-              value={repo}
-              onChange={e => setRepo(e.target.value)}
-              onKeyDown={e => e.key==='Enter' && !isRunning && startReview()}
-            />
-          </div>
-          <div className="input-wrap branch-wrap">
-            <GitBranch size={16} className="input-icon" />
-            <input
-              className="inp"
-              placeholder="main"
-              value={branch}
-              onChange={e => setBranch(e.target.value)}
-            />
-          </div>
+        <div className="input-mode-switcher">
+          <button
+            type="button"
+            className={`mode-tab-btn ${inputMode === 'url' ? 'active' : ''}`}
+            onClick={() => setInputMode('url')}
+          >
+            <Link2 size={15} /> Git URL / Local Path
+          </button>
+          <button
+            type="button"
+            className={`mode-tab-btn ${inputMode === 'upload' ? 'active' : ''}`}
+            onClick={() => setInputMode('upload')}
+          >
+            <FolderUp size={15} /> Upload Local Folder
+          </button>
         </div>
+
+        {inputMode === 'url' ? (
+          <>
+            <label className="input-label">Target Repository</label>
+            <div className="input-row">
+              <div className="input-wrap repo-wrap">
+                <Link2 size={16} className="input-icon" />
+                <input
+                  className="inp"
+                  placeholder="https://github.com/owner/repo  or  E:\path\to\repo"
+                  value={repo}
+                  onChange={e => setRepo(e.target.value)}
+                  onKeyDown={e => e.key==='Enter' && !isRunning && startReview()}
+                />
+              </div>
+              <div className="input-wrap branch-wrap">
+                <GitBranch size={16} className="input-icon" />
+                <input
+                  className="inp"
+                  placeholder="main"
+                  value={branch}
+                  onChange={e => setBranch(e.target.value)}
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="input-label">Upload Local Project</label>
+            <input
+              type="file"
+              ref={folderInputRef}
+              style={{ display: 'none' }}
+              // @ts-expect-error webkitdirectory is standard in HTML5 browsers
+              webkitdirectory=""
+              directory=""
+              multiple
+              onChange={handleFolderSelect}
+            />
+            {uploadedFiles.length === 0 ? (
+              <div
+                className="folder-dropzone"
+                onClick={() => folderInputRef.current?.click()}
+              >
+                <div className="folder-dropzone-icon">
+                  {isReadingFolder ? <Loader2 size={22} className="spin" /> : <FolderUp size={22} />}
+                </div>
+                <div className="folder-dropzone-title">
+                  {isReadingFolder ? 'Reading project files…' : 'Click to select your local project folder'}
+                </div>
+                <div className="folder-dropzone-subtitle">
+                  Select your local folder (e.g. <code>E:\Codesense</code>). CodeSense parses high-signal source files directly in your browser and securely transmits them for review.
+                </div>
+              </div>
+            ) : (
+              <div className="folder-selected-box">
+                <div className="folder-selected-info">
+                  <div className="folder-dropzone-icon" style={{ margin: 0, width: 38, height: 38 }}>
+                    <Folder size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{uploadedFolderName}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
+                      Ready to analyze
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="folder-badge">{uploadedFiles.length} files selected</span>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => folderInputRef.current?.click()}
+                  >
+                    Change Folder
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="btn-row">
           <button
             className="btn btn-primary"
             onClick={startReview}
-            disabled={isRunning || !repo.trim()}
+            disabled={isRunning || (inputMode === 'url' ? !repo.trim() : uploadedFiles.length === 0)}
           >
             {isRunning ? (
               <>
@@ -459,7 +645,7 @@ export default function ReviewPage() {
               </>
             ) : (
               <>
-                <Rocket size={16} /> Start Review
+                <Rocket size={16} /> {inputMode === 'upload' && uploadedFiles.length > 0 ? `Start Review (${uploadedFiles.length} files)` : 'Start Review'}
               </>
             )}
           </button>

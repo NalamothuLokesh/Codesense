@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 670" width="1020" height="670">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+
+  <defs>
+    <!-- Sharp, high-visibility dark arrowheads -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0f172a"/>
+    </marker>
+    <!-- Secondary Blue Arrowhead for internal pipeline -->
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <style>
+    .layer-title { font-family: Arial, sans-serif; font-size: 11.5px; font-weight: bold; fill: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }
+    .box-title { font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; fill: #0f172a; }
+    .box-sub { font-family: Arial, sans-serif; font-size: 9.5px; font-weight: normal; fill: #334155; }
+    .conn-label { font-family: Arial, sans-serif; font-size: 10px; font-weight: bold; fill: #334155; letter-spacing: 0.5px; }
+    .conn-sub-badge { font-family: Arial, sans-serif; font-size: 9px; font-weight: bold; fill: #334155; letter-spacing: 0.4px; }
+    .caption { font-family: Arial, sans-serif; font-size: 13.5px; font-weight: bold; fill: #0f172a; }
+    .security-text { font-family: Arial, sans-serif; font-size: 10.5px; fill: #0f172a; }
+  </style>
+
+  <!-- ======================================================== -->
+  <!-- 1. LAYER CONTAINERS (Rendered first as background)       -->
+  <!-- ======================================================== -->
+
+  <!-- Layer 1 Container: PRESENTATION LAYER -->
+  <rect x="35" y="30" width="950" height="100" rx="6" fill="#fafafa" stroke="#1e293b" stroke-width="1.8"/>
+  <rect x="35" y="30" width="950" height="26" rx="6" fill="#f1f5f9" stroke="#1e293b" stroke-width="1.8"/>
+  <text x="510" y="47" text-anchor="middle" class="layer-title">PRESENTATION LAYER (React 19 single-page application, Vite bundle)</text>
+
+  <!-- Layer 2 Container: API GATEWAY LAYER -->
+  <rect x="35" y="172" width="950" height="92" rx="6" fill="#fafafa" stroke="#1e293b" stroke-width="1.8"/>
+  <rect x="35" y="172" width="950" height="26" rx="6" fill="#f1f5f9" stroke="#1e293b" stroke-width="1.8"/>
+  <text x="510" y="189" text-anchor="middle" class="layer-title">API GATEWAY LAYER (Node.js &amp; Express, JWT Auth, Subprocess Supervisor)</text>
+
+  <!-- Layer 3 Container: AI EXECUTION & SERVICE LAYER -->
+  <rect x="35" y="302" width="950" height="98" rx="6" fill="#fafafa" stroke="#1e293b" stroke-width="1.8"/>
+  <rect x="35" y="302" width="950" height="26" rx="6" fill="#f1f5f9" stroke="#1e293b" stroke-width="1.8"/>
+  <text x="510" y="319" text-anchor="middle" class="layer-title">AI EXECUTION &amp; SERVICE LAYER (Python 3.11 Microservices)</text>
+
+  <!-- Layer 4 Container: DATA AND EXTERNAL SERVICES LAYER -->
+  <rect x="35" y="438" width="950" height="106" rx="6" fill="#fafafa" stroke="#1e293b" stroke-width="1.8"/>
+  <rect x="35" y="438" width="950" height="26" rx="6" fill="#f1f5f9" stroke="#1e293b" stroke-width="1.8"/>
+  <text x="510" y="455" text-anchor="middle" class="layer-title">DATA AND EXTERNAL SERVICES LAYER</text>
+
+  <!-- Layer 5: SECURITY CROSS-CUT -->
+  <rect x="35" y="556" width="950" height="42" rx="6" fill="#f8fafc" stroke="#1e293b" stroke-width="1.8"/>
+  <text x="510" y="581" text-anchor="middle" class="security-text">
+    <tspan font-weight="bold" fill="#0f172a">SECURITY CROSS-CUT: </tspan>
+    <tspan fill="#334155">bcrypt password hashing  |  HMAC-SHA256 JWT  |  Google OAuth 2.0 PKCE  |  Subprocess supervision  |  Tenant data isolation</tspan>
+  </text>
+
+  <!-- Figure Caption -->
+  <text x="510" y="635" text-anchor="middle" class="caption">Fig 4.1 System architecture of the proposed system</text>
+
+
+  <!-- ======================================================== -->
+  <!-- 2. INNER COMPONENT BOXES (Rendered next)                 -->
+  <!-- ======================================================== -->
+
+  <!-- Layer 1 Inner Boxes -->
+  <rect x="50" y="66" width="170" height="52" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="135" y="86" text-anchor="middle" class="box-title">Repository Intake</text>
+  <text x="135" y="103" text-anchor="middle" class="box-sub">GitHub URL / Local Path</text>
+
+  <rect x="240" y="66" width="170" height="52" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="325" y="86" text-anchor="middle" class="box-title">Review &amp; Inspector</text>
+  <text x="325" y="103" text-anchor="middle" class="box-sub">Health Scorecard (P1–P4)</text>
+
+  <rect x="430" y="66" width="170" height="52" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="515" y="86" text-anchor="middle" class="box-title">Architecture Viewer</text>
+  <text x="515" y="103" text-anchor="middle" class="box-sub">Live Mermaid.js Render</text>
+
+  <rect x="620" y="66" width="170" height="52" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="705" y="86" text-anchor="middle" class="box-title">RAG Chat Console</text>
+  <text x="705" y="103" text-anchor="middle" class="box-sub">Conversational Assistant</text>
+
+  <rect x="810" y="66" width="160" height="52" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="890" y="86" text-anchor="middle" class="box-title">Export &amp; Settings</text>
+  <text x="890" y="103" text-anchor="middle" class="box-sub">Markdown &amp; Quota Panel</text>
+
+  <!-- Layer 2 Inner Boxes -->
+  <rect x="50" y="208" width="170" height="44" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="135" y="226" text-anchor="middle" class="box-title">/api/auth</text>
+  <text x="135" y="241" text-anchor="middle" class="box-sub">OTP &amp; JWT Verification</text>
+
+  <rect x="240" y="208" width="170" height="44" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="325" y="226" text-anchor="middle" class="box-title">/api/review</text>
+  <text x="325" y="241" text-anchor="middle" class="box-sub">Job Lifecycle &amp; Polling</text>
+
+  <rect x="430" y="208" width="170" height="44" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="515" y="226" text-anchor="middle" class="box-title">/api/chat</text>
+  <text x="515" y="241" text-anchor="middle" class="box-sub">FastAPI Proxy &amp; Session</text>
+
+  <rect x="620" y="208" width="170" height="44" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="705" y="226" text-anchor="middle" class="box-title">/api/user</text>
+  <text x="705" y="241" text-anchor="middle" class="box-sub">Profiles &amp; Tier Quotas</text>
+
+  <rect x="810" y="208" width="160" height="44" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="890" y="226" text-anchor="middle" class="box-title">/api/health</text>
+  <text x="890" y="241" text-anchor="middle" class="box-sub">Supervisor Liveness Poll</text>
+
+  <!-- Layer 3 Inner Boxes -->
+  <rect x="50" y="338" width="170" height="50" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="135" y="356" text-anchor="middle" class="box-title">Ingestion &amp; Sandbox</text>
+  <text x="135" y="373" text-anchor="middle" class="box-sub">GitPython, Filter Boilerplate</text>
+
+  <rect x="240" y="338" width="170" height="50" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="325" y="356" text-anchor="middle" class="box-title">Heuristic Pre-Scanner</text>
+  <text x="325" y="373" text-anchor="middle" class="box-sub">Deterministic Regex Checks</text>
+
+  <rect x="430" y="338" width="170" height="50" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="515" y="356" text-anchor="middle" class="box-title">Context Budgeting</text>
+  <text x="515" y="373" text-anchor="middle" class="box-sub">Semantic Priority Packing</text>
+
+  <rect x="620" y="338" width="170" height="50" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="705" y="356" text-anchor="middle" class="box-title">Review Orchestrator</text>
+  <text x="705" y="373" text-anchor="middle" class="box-sub">4 Sequential LLM Calls</text>
+
+  <rect x="810" y="338" width="160" height="50" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="890" y="356" text-anchor="middle" class="box-title">RAG Chat Service</text>
+  <text x="890" y="373" text-anchor="middle" class="box-sub">FastAPI + ChromaDB HNSW</text>
+
+  <!-- Layer 4 Inner Boxes -->
+  <rect x="50" y="474" width="215" height="58" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="157" y="492" text-anchor="middle" class="box-title">MongoDB Atlas</text>
+  <text x="157" y="507" text-anchor="middle" class="box-sub">Mongoose ODM Schemas</text>
+  <text x="157" y="521" text-anchor="middle" class="box-sub">Users, Reviews, Quotas, Logs</text>
+
+  <rect x="285" y="474" width="215" height="58" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="392" y="492" text-anchor="middle" class="box-title">ChromaDB Vector Store</text>
+  <text x="392" y="507" text-anchor="middle" class="box-sub">Persistent HNSW Collection</text>
+  <text x="392" y="521" text-anchor="middle" class="box-sub">Review Markdown Chunks</text>
+
+  <rect x="520" y="474" width="215" height="58" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="627" y="492" text-anchor="middle" class="box-title">AI Model Interface</text>
+  <text x="627" y="507" text-anchor="middle" class="box-sub">Google Gemini Flash API</text>
+  <text x="627" y="521" text-anchor="middle" class="box-sub">Local Ollama (qwen2.5:3b)</text>
+
+  <rect x="755" y="474" width="215" height="58" rx="4" fill="#ffffff" stroke="#1e293b" stroke-width="1.4"/>
+  <text x="862" y="492" text-anchor="middle" class="box-title">Local System Toolchain</text>
+  <text x="862" y="507" text-anchor="middle" class="box-sub">GitPython, microcore</text>
+  <text x="862" y="521" text-anchor="middle" class="box-sub">Regex AST, Nodemailer</text>
+
+
+  <!-- ======================================================== -->
+  <!-- 3. BOX-TO-BOX CONNECTORS & ARROWHEADS                    -->
+  <!-- (Rendered ON TOP so arrowheads are 100% visible)         -->
+  <!-- ======================================================== -->
+
+  <!-- Layer 1 to Layer 2: Direct Box-to-Box Arrows -->
+  <line x1="135" y1="118" x2="135" y2="206" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="325" y1="118" x2="325" y2="206" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="515" y1="118" x2="515" y2="206" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="705" y1="118" x2="705" y2="206" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="890" y1="118" x2="890" y2="206" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Layer 1-2 Protocol Badge -->
+  <rect x="415" y="142" width="190" height="20" fill="#ffffff" stroke="#94a3b8" stroke-width="0.9" rx="3"/>
+  <text x="510" y="156" text-anchor="middle" class="conn-label">HTTPS / JSON REST API</text>
+
+
+  <!-- Layer 2 to Layer 3: Direct Box-to-Box Arrows -->
+  <line x1="135" y1="252" x2="135" y2="336" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="325" y1="252" x2="325" y2="336" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="515" y1="252" x2="515" y2="336" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="705" y1="252" x2="705" y2="336" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="890" y1="252" x2="890" y2="336" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Layer 2-3 Protocol Badge -->
+  <rect x="395" y="274" width="230" height="20" fill="#ffffff" stroke="#94a3b8" stroke-width="0.9" rx="3"/>
+  <text x="510" y="288" text-anchor="middle" class="conn-label">IPC SUBPROCESS &amp; FASTAPI PROXY</text>
+
+
+  <!-- Intra-Layer 3 Pipeline Flow: Horizontal Blue Arrows -->
+  <line x1="220" y1="363" x2="238" y2="363" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arrow-blue)"/>
+  <line x1="410" y1="363" x2="428" y2="363" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arrow-blue)"/>
+  <line x1="600" y1="363" x2="618" y2="363" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arrow-blue)"/>
+  <line x1="790" y1="363" x2="808" y2="363" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arrow-blue)"/>
+
+
+  <!-- Layer 3 to Layer 4: Direct Box-to-Box Arrows -->
+  <line x1="157" y1="388" x2="157" y2="472" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="392" y1="388" x2="392" y2="472" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="627" y1="388" x2="627" y2="472" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <line x1="862" y1="388" x2="862" y2="472" stroke="#0f172a" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Layer 3-4 Protocol Badge: Perfectly Sized Two-Line Badge with Generous Margins -->
+  <rect x="412" y="406" width="196" height="26" fill="#ffffff" stroke="#94a3b8" stroke-width="0.9" rx="3"/>
+  <text x="510" y="417" text-anchor="middle" class="conn-sub-badge">PERSISTENCE &amp; VECTOR STORE</text>
+  <text x="510" y="428" text-anchor="middle" class="conn-sub-badge">&amp; LLM INFERENCE</text>
+
+</svg>

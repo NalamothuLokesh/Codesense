@@ -1,0 +1,29 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam roundcorner 8
+
+title Fig 4.3 Data Flow Diagram — CodeSense Processing Pipeline
+
+start
+
+:Target Repository Intake & Ephemeral Sandboxing
+(Clones Git repository into sandbox, filters 25+ non-source categories);
+
+:Deterministic Static Heuristic Pre-Scanning
+(Detects verified security flaws: hardcoded secrets, wildcard CORS, disabled SSL);
+
+:Semantic Context Priority Scheduling & Token Budgeting
+(Prioritizes manifests, entry points, schemas under bounded token budgets);
+
+:Four-Stage Sequential LLM Review Orchestration
+(Executes Call 1: Health, Call 2: Architecture, Call 3: Security, Call 4: Roadmap);
+
+:Multi-Store Persistence & Interactive RAG Indexing
+(Commits 12-section specification to MongoDB and indexes embeddings into ChromaDB);
+
+stop
+
+@enduml

@@ -81,6 +81,8 @@ def is_core(p: str) -> bool:
 
 # ── Project Context & Intelligence Extractor ──────────────────────────────────
 def extract_project_context(repo_path: str, repo_url: str = "") -> dict:
+    repo_path = (repo_path or "").strip().strip("'\"")
+    repo_url = (repo_url or "").strip().strip("'\"")
     base = Path(repo_path)
     ctx_data = {
         "name": "",
@@ -248,6 +250,7 @@ def extract_project_context(repo_path: str, repo_url: str = "") -> dict:
 
 # ── Intelligent File Collector ────────────────────────────────────────────────
 def collect_repo_files(repo_path: str):
+    repo_path = (repo_path or "").strip().strip("'\"")
     base = Path(repo_path)
     all_discovered = []
 
@@ -1016,6 +1019,8 @@ def deduplicate_review_markdown(md: str) -> str:
 
 # ── Main Generator ────────────────────────────────────────────────────────────
 async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
+    repo_path = (repo_path or "").strip().strip("'\"")
+    repo_url = (repo_url or "").strip().strip("'\"")
     mc.configure(
         LLM_API_TYPE=os.getenv("LLM_API_TYPE", "openai"),
         LLM_API_BASE=os.getenv("LLM_API_BASE", ""),
@@ -1029,7 +1034,7 @@ async def generate(repo_path: str, repo_url: str, pfile: str = "") -> str:
     meta = extract_project_context(repo_path, repo_url)
     files, total_disc = collect_repo_files(repo_path)
     if not files:
-        return "# Error\n\nNo readable source files found."
+        raise RuntimeError(f"No readable source files found in '{repo_path}'. Please ensure the path exists and contains valid source code files.")
 
     # Record structural classifications
     meta["all_files_count"] = total_disc
